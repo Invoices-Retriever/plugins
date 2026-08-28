@@ -62,7 +62,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Is the application repository readable from here?
+        id: app
+        env:
+          # The default token only reaches this repository. That is enough
+          # while the application repository is public; if it is ever made
+          # private, set an APP_REPO_TOKEN secret with read access to it, or
+          # this job skips itself rather than failing every pull request.
+          GH_TOKEN: ${{ secrets.APP_REPO_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          if gh api repos/Invoices-Retriever/mac-os-app >/dev/null 2>&1; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::Cannot read Invoices-Retriever/mac-os-app, so the authoritative validator did not run. The fast structural checks still did."
+            echo "available=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Select the newest Swift toolchain on the runner
+        if: steps.app.outputs.available == 'true'
         run: |
           # Runner images ship several Xcodes and default to an older one;
           # this package needs Swift 6. Picking the highest present avoids
@@ -72,12 +89,15 @@ jobs:
           swift --version
 
       - name: Check out the application
+        if: steps.app.outputs.available == 'true'
         uses: actions/checkout@v4
         with:
           repository: Invoices-Retriever/mac-os-app
+          token: ${{ secrets.APP_REPO_TOKEN || secrets.GITHUB_TOKEN }}
           path: .app
 
       - name: Cache the Swift build
+        if: steps.app.outputs.available == 'true'
         uses: actions/cache@v4
         with:
           path: .app/.build
@@ -85,10 +105,12 @@ jobs:
           restore-keys: swift-${{ runner.os }}-
 
       - name: Build irctl
+        if: steps.app.outputs.available == 'true'
         working-directory: .app
         run: swift build -c release --product irctl
 
       - name: Schema is in step with the application
+        if: steps.app.outputs.available == 'true'
         run: |
           if ! diff -q schema/plugin-v1.schema.json .app/schema/plugin-v1.schema.json; then
             echo "::error::schema/plugin-v1.schema.json differs from the application's copy."
@@ -98,10 +120,21 @@ jobs:
           fi
 
       - name: Validate
+        if: steps.app.outputs.available == 'true'
         run: |
           IRCTL="$(cd .app && swift build -c release --show-bin-path)/irctl"
-          "$IRCTL" validate plugins
-          if [ -n "$(ls -A drafts/*.json 2>/dev/null)" ]; then "$IRCTL" validate drafts; fi
+          checked=0
+          for directory in plugins drafts docs; do
+            # A directory with no plugins in it is not an error here; it is what
+            # plugins/ legitimately looks like until the first one is verified.
+            if compgen -G "$directory/*.json" > /dev/null; then
+              "$IRCTL" validate "$directory"
+              checked=1
+            else
+              echo "· $directory/ holds no plugins"
+            fi
+          done
+          test "$checked" = "1" || { echo "::error::no plugins anywhere"; exit 1; }
 
   selectors:
     name: Offline selector tests

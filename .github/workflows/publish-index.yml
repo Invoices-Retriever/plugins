@@ -21,7 +21,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Is the application repository readable from here?
+        id: app
+        env:
+          # The default token only reaches this repository. That is enough
+          # while the application repository is public; if it is ever made
+          # private, set an APP_REPO_TOKEN secret with read access to it, or
+          # this job skips itself rather than failing every pull request.
+          GH_TOKEN: ${{ secrets.APP_REPO_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          if gh api repos/Invoices-Retriever/mac-os-app >/dev/null 2>&1; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::Cannot read Invoices-Retriever/mac-os-app, so the authoritative validator did not run. The fast structural checks still did."
+            echo "available=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Select the newest Swift toolchain on the runner
+        if: steps.app.outputs.available == 'true'
         run: |
           # Runner images ship several Xcodes and default to an older one;
           # this package needs Swift 6. Picking the highest present avoids
@@ -31,12 +48,15 @@ jobs:
           swift --version
 
       - name: Check out the application
+        if: steps.app.outputs.available == 'true'
         uses: actions/checkout@v4
         with:
           repository: Invoices-Retriever/mac-os-app
+          token: ${{ secrets.APP_REPO_TOKEN || secrets.GITHUB_TOKEN }}
           path: .app
 
       - name: Cache the Swift build
+        if: steps.app.outputs.available == 'true'
         uses: actions/cache@v4
         with:
           path: .app/.build
@@ -44,10 +64,12 @@ jobs:
           restore-keys: swift-${{ runner.os }}-
 
       - name: Build irctl
+        if: steps.app.outputs.available == 'true'
         working-directory: .app
         run: swift build -c release --product irctl
 
       - name: Build and sign the index
+        if: steps.app.outputs.available == 'true'
         env:
           # Ed25519 private key, base64. Generated with `irctl keygen`; the
           # matching public key is compiled into the application, so an index
@@ -71,7 +93,7 @@ jobs:
           cp -R plugins dist/plugins
 
       - name: Verify what we are about to publish
-        if: env.skipped != 'true'
+        if: steps.app.outputs.available == 'true' && env.skipped != 'true'
         run: |
           test -s dist/index.json
           test -s dist/index.json.sig
@@ -90,7 +112,7 @@ jobs:
           PY
 
       - name: Publish
-        if: env.skipped != 'true'
+        if: steps.app.outputs.available == 'true' && env.skipped != 'true'
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
