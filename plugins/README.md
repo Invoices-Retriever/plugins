@@ -1,12 +1,20 @@
-# Verified plugins
+# Published plugins
 
-Plugins here have been run against a live account by the person who submitted
-them. They are the ones published in the signed index and offered to users.
+These are the plugins the signed index carries, and what the application offers
+in its catalogue.
 
-It is empty today. That is honest rather than embarrassing: the alternative is
-shipping a catalogue of untested guesses, and a plugin that looks supported but
-silently collects nothing is worse for a user than no plugin at all.
+Each one declares a `status`:
 
-Starting points live in [`../drafts/`](../drafts/) — real URLs and flow shapes,
-unverified selectors. If you have an account with one of those suppliers,
-adopting a draft is the single most useful contribution you can make.
+| | |
+| --- | --- |
+| `unverified` | Structurally valid, never run against a live account. Every plugin starts here. It is offered and badged, so a user choosing it knows they are the one finding out. |
+| `active` | Someone has run it against a real account and it worked. |
+| `degraded` | Failing for several people. Still installable, still badged. |
+| `archived` | Unmaintained and broken for 90 days. No longer offered. |
+
+Promoting `unverified` to `active` is the single most useful contribution to
+this project: it takes an account you already have and about ten minutes. See
+the notes next to each plugin.
+
+[`../drafts/`](../drafts/) holds plugins nobody has adopted yet — not even far
+enough along to publish.
