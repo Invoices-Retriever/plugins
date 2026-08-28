@@ -2,7 +2,7 @@
   "$schema": "../schema/plugin-v1.schema.json",
   "id": "ovh",
   "name": "OVHcloud",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Factures OVHcloud. Connexion et double authentification vérifiées sur le portail réel ; les sélecteurs du tableau de facturation restent à confirmer — voir ovh.NOTES.md.",
   "homepage": "https://www.ovhcloud.com",
   "maintainers": ["@cldt-fr"],
@@ -108,6 +108,12 @@
       "selector": "#password",
       "value": "{{secret.password}}",
       "description": "Vérifié : même raison, le name est randomisé."
+    },
+    {
+      "action": "click",
+      "selector": "#remember_account",
+      "optional": true,
+      "description": "Coche « Se souvenir de ce compte ». Sans elle OVH n'ouvre la session qu'avec des cookies de session, qui disparaissent à la fermeture de l'application et obligent à repasser la double authentification à chaque lancement. Optionnelle : si la case n'existe pas, l'étape est ignorée."
     },
     {
       "action": "click",

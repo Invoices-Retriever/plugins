@@ -18,6 +18,8 @@ Read on `auth.eu.ovhcloud.com/signin/`, so you do not have to take it on trust:
 | Two-factor field | `#totp` — `input[type=number][name=totp]` inside `form#2fa` |
 | Two-factor submit | `#totpSubmit` — `button[name="otpMethod"]` |
 | After two-factor | an OVH Telecom customer lands on `www.ovhtelecom.fr`, hence that domain |
+| Remember the account | `#remember_account`, ticked before submitting |
+| Billing page | rendered inside an `iframe`; the shell document contains no table |
 
 **Do not navigate to the login page if you are already on it.** `checkAuth`
 gets redirected there with a callback that returns to the manager; navigating
