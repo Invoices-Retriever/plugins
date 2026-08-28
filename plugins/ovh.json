@@ -2,7 +2,7 @@
   "$schema": "../schema/plugin-v1.schema.json",
   "id": "ovh",
   "name": "OVHcloud",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "Factures OVHcloud. Connexion et double authentification vérifiées sur le portail réel ; les sélecteurs du tableau de facturation restent à confirmer — voir ovh.NOTES.md.",
   "homepage": "https://www.ovhcloud.com",
   "maintainers": ["@cldt-fr"],
@@ -152,7 +152,8 @@
   "getDocuments": [
     {
       "action": "navigate",
-      "url": "https://manager.{{config.region}}.ovhcloud.com/#/billing/history"
+      "url": "https://manager.{{config.region}}.ovhcloud.com/billing/#/history",
+      "description": "L'application de facturation elle-même. Le manager l'affiche dans une iframe ; y aller directement évite la coquille de navigation."
     },
     {
       "action": "waitForNetworkIdle",
@@ -161,14 +162,15 @@
     },
     {
       "action": "waitForElement",
-      "selector": "table tbody tr",
+      "selector": "table.oui-datagrid tbody tr",
       "timeout": 25000,
-      "description": "NON VÉRIFIÉ à partir d'ici : voir ovh.NOTES.md pour confirmer ces sélecteurs en dix minutes."
+      "description": "Vérifié : le tableau est un oui-datagrid Angular."
     },
     {
       "action": "extractAll",
-      "selector": "table tbody tr",
+      "selector": "table.oui-datagrid tbody tr",
       "limit": 60,
+      "description": "Les colonnes et le lien de téléchargement restent à confirmer.",
       "fields": {
         "billId": {
           "selector": "td:nth-child(1)"
@@ -180,8 +182,9 @@
           "selector": "td:nth-child(4)"
         },
         "pdf": {
-          "selector": "a[href*='pdf'], a[download]",
-          "attribute": "href"
+          "selector": "a[href*='pdf'], a[download], a[href*='download']",
+          "attribute": "href",
+          "optional": true
         }
       },
       "forEach": [
