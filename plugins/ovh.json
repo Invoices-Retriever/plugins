@@ -2,8 +2,8 @@
   "$schema": "../schema/plugin-v1.schema.json",
   "id": "ovh",
   "name": "OVHcloud",
-  "version": "0.4.0",
-  "description": "Factures OVHcloud. La connexion est vérifiée sur le portail réel ; les sélecteurs du tableau de facturation ne le sont pas encore — voir ovh.NOTES.md. Signalez-nous ce que vous trouvez.",
+  "version": "0.5.0",
+  "description": "Factures OVHcloud. Connexion et double authentification vérifiées sur le portail réel ; les sélecteurs du tableau de facturation restent à confirmer — voir ovh.NOTES.md.",
   "homepage": "https://www.ovhcloud.com",
   "maintainers": ["@cldt-fr"],
   "country": ["FR", "EU"],
@@ -104,21 +104,26 @@
     {
       "action": "if",
       "condition": {
-        "elementExists": "input[autocomplete='one-time-code'], #totpCode, input[name='totpCode'], #emailCode, #smsCode, #backupCode, input[placeholder='Code'], form input[type='text']:not(#account):not(#lost-account)"
+        "elementExists": "#totp"
       },
       "then": [
         {
           "action": "type",
-          "selector": "input[autocomplete='one-time-code'], #totpCode, input[name='totpCode'], #emailCode, #smsCode, #backupCode, input[placeholder='Code'], form input[type='text']:not(#account):not(#lost-account)",
+          "selector": "#totp",
           "value": "{{totp.mfa}}",
-          "pressEnter": true,
-          "description": "Écran « Validation en deux étapes ». L'union couvre les variantes d'OVH ; si aucune ne correspond, l'utilisateur saisit le code lui-même et l'app capture la structure de la page pour corriger le sélecteur."
+          "description": "Vérifié sur l'écran réel : form#2fa contient input#totp[type=number][name=totp]. Le champ est de type number, pas text."
+        },
+        {
+          "action": "click",
+          "selector": "#totpSubmit",
+          "description": "Vérifié : button#totpSubmit[name=otpMethod]. Cliquer le bouton plutôt que valider au clavier, pour qu'OVH reçoive la méthode choisie — sans elle la page revient sans rien dire."
         },
         {
           "action": "waitForNavigation",
           "timeout": 30000
         }
-      ]
+      ],
+      "description": "Écran « Validation en deux étapes », quand la 2FA est active sur le compte."
     }
   ],
   "getDocuments": [
