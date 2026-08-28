@@ -17,6 +17,15 @@ Read on `auth.eu.ovhcloud.com/signin/`, so you do not have to take it on trust:
 | Signed-out behaviour | the manager redirects to `auth.<region>.ovhcloud.com/signin/` |
 | Two-factor field | `#totp` — `input[type=number][name=totp]` inside `form#2fa` |
 | Two-factor submit | `#totpSubmit` — `button[name="otpMethod"]` |
+| After two-factor | an OVH Telecom customer lands on `www.ovhtelecom.fr`, hence that domain |
+
+**Do not navigate to the login page if you are already on it.** `checkAuth`
+gets redirected there with a callback that returns to the manager; navigating
+afresh discards it, and the sign-in ends on whatever the account's default
+destination happens to be. For an OVH Telecom customer that is
+`www.ovhtelecom.fr`, which the sandbox then blocks — reported as "the two-factor
+screen does not click Validate", because the click did work and the navigation
+after it did not.
 
 **Click `#totpSubmit`; do not submit the two-factor form from the keyboard.**
 The button carries `name="otpMethod"`, and a submission without it tells OVHcloud

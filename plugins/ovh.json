@@ -2,14 +2,21 @@
   "$schema": "../schema/plugin-v1.schema.json",
   "id": "ovh",
   "name": "OVHcloud",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Factures OVHcloud. Connexion et double authentification vérifiées sur le portail réel ; les sélecteurs du tableau de facturation restent à confirmer — voir ovh.NOTES.md.",
   "homepage": "https://www.ovhcloud.com",
   "maintainers": ["@cldt-fr"],
   "country": ["FR", "EU"],
   "tags": ["hosting", "cloud", "domains"],
   "engine": ">=1.0.0",
-  "allowedDomains": ["ovhcloud.com", "*.ovhcloud.com", "ovh.com", "*.ovh.com"],
+  "allowedDomains": [
+    "ovhcloud.com",
+    "*.ovhcloud.com",
+    "ovh.com",
+    "*.ovh.com",
+    "ovhtelecom.fr",
+    "*.ovhtelecom.fr"
+  ],
   "status": "unverified",
   "configSchema": {
     "region": {
@@ -71,9 +78,19 @@
   ],
   "startAuth": [
     {
-      "action": "navigate",
-      "url": "https://www.ovh.com/auth/",
-      "description": "Redirige vers auth.<région>.ovhcloud.com/signin/"
+      "action": "if",
+      "condition": {
+        "not": {
+          "elementExists": "#account"
+        }
+      },
+      "description": "checkAuth vient d'être redirigé sur la page de connexion, avec un callback qui ramène au manager. N'y retourner que si on n'y est pas déjà : y renaviguer efface ce callback, et la connexion se termine sur la destination par défaut du compte.",
+      "then": [
+        {
+          "action": "navigate",
+          "url": "https://www.ovh.com/auth/"
+        }
+      ]
     },
     {
       "action": "waitForElement",
