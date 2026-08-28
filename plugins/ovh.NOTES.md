@@ -1,8 +1,8 @@
-# Finishing the OVHcloud plugin
+# Notes on the OVHcloud plugin
 
-The sign-in half of `ovh.json` was checked against the real portal. The billing
-table was not — that needs an account. This is the ten minutes of work between
-a draft and something users can rely on.
+Everything here was read off the live portal or off OVHcloud's own published
+sources, so a future maintainer does not have to rediscover it — and does not
+have to take any of it on trust.
 
 ## What is already verified
 
@@ -40,64 +40,73 @@ visit, something else on the next. Worse, `input[name='account']` *does* match
 an element: the hidden "forgot my password" field. A plugin using it types the
 customer number into the wrong form and reports a failed login.
 
-## What is left
+## How the collection works
 
-Three selectors in `getDocuments`: the invoice rows, the columns inside a row,
-and the link to the PDF.
+`getDocuments` does **not** read the billing table. It calls OVHcloud's own
+API v6, the same one the manager's Angular application calls to draw that table:
+
+```
+GET /engine/apiv6/me/bill?date.from=…   → ["FR12345678", …]
+GET /engine/apiv6/me/bill/{billId}      → { billId, date, pdfUrl, priceWithTax }
+```
+
+The base path is relative to the manager origin — `/engine/apiv6` on
+`manager.<region>.ovhcloud.com` — and the call carries nothing but the session
+cookies the sign-in already established. There is no API key, no consumer key,
+and no second set of credentials to ask the user for. The full schema is at
+`https://eu.api.ovh.com/1.0/me.json`.
+
+This is why the first step navigates to the billing page before calling
+anything: `apiRequest` issues the call *from the page the browser is on*, so it
+inherits that page's session and stays inside the same `allowedDomains` sandbox
+as everything else.
+
+`date.from` is filled from `{{cutoff.date}}`, the last successful run, so the
+second collection of the month asks for a short list rather than filtering a
+long one.
+
+### Statuses that mean "sign in again"
+
+The manager's own client treats `401`, `403` with `This session is invalid`,
+and `471` ("low order session" — real but too weak for this call) as reasons to
+send the user back to the login page. The engine does the same: those three
+statuses raise an authentication error, so the app offers **Sign in** instead of
+showing an HTTP code the user can do nothing with.
+
+## What is left to verify
+
+The sign-in half is confirmed against the live portal. The API half is written
+from OVHcloud's published schema and its manager's source, and still needs one
+run against a real account with invoices:
 
 ```bash
 export PATH="/Applications/Invoices Retriever.app/Contents/MacOS:$PATH"
 cd plugins
 
-# 1. Confirm the sign-in half. A browser window opens; sign in, deal with 2FA.
-irctl run drafts/ovh.json --section checkAuth --config region=eu
+# A browser window opens; sign in and deal with 2FA.
+irctl run plugins/ovh.json --section checkAuth --config region=eu
 
-# 2. Walk through the collection one step at a time.
-irctl run drafts/ovh.json --config region=eu --config customerID=ab12345-ovh --step
+# Then the whole collection, one step at a time.
+irctl run plugins/ovh.json --config region=eu --config customerID=ab12345-ovh --step
 ```
 
 `--step` pauses before each step and prints what it is about to do; type `v` and
-return to dump the variables it has collected so far. When a step fails it stops
-and writes `irctl-failure.png` — a screenshot of exactly what the browser was
-looking at.
+return to dump the variables collected so far — which is how you check that
+`billIds` really came back as a list. When a step fails it stops and writes
+`irctl-failure.png`.
 
-To find the right selectors, open the billing history in your own browser, right
-click a row, Inspect. Prefer, in this order:
+Then run it **twice**. The second run must download nothing. `document.id` is
+`billId`, which OVHcloud does not recycle, so it should not — but that is the
+check that catches a duplicate-every-month bug before a user finds it.
 
-1. `[data-testid=…]` or another attribute that reads like it was put there on
-   purpose. These survive a redesign.
-2. A semantic structure: `table tbody tr`, `td:nth-child(2)`.
-3. Generated class names such as `.css-1x2y3z`. These break on the next deploy;
-   use one only if there is nothing else, and say so in the pull request.
-
-Then run it **twice**. The second run must download nothing. If it downloads
-again, `document.id` is not stable between runs and every user would collect
-duplicates every month.
-
-## A better route, once the format allows it
-
-OVH's manager is an Angular application that reads its own public API. The
-schema at `https://eu.api.ovh.com/1.0/me.json` documents exactly what is
-available, and it is far steadier than any rendered table:
-
-- `GET /me/bill` → `string[]`, the bill ids, filterable with `date.from` and
-  `date.to` — which maps directly onto incremental collection.
-- `GET /me/bill/{billId}` → `billing.Bill`, with `billId`, `date` (datetime),
-  `pdfUrl`, and `priceWithTax` as `{ value, text, currencyCode }`.
-
-The engine can already observe those responses with `extractNetworkResponse`.
-What it cannot yet do is iterate a JSON array: `extractAll` walks DOM elements
-only, so there is no way to loop over the ids `/me/bill` returns and fetch each
-one. That is a gap in the format rather than in this plugin, and it will show up
-again for every modern single-page portal. It is tracked in the application
-repository; until it closes, scraping the table is the way.
+If the API route ever stops working, the table is still there:
+`table.oui-datagrid tbody tr` inside the billing iframe, matched 11 rows on a
+real account. Scraping it is the fallback, not the plan.
 
 ## Before opening a pull request
 
-- Move the file from `drafts/` to `plugins/` and add yourself to `maintainers`.
-- Bump `version`.
-- Save an anonymised copy of the billing page to `tests/ovh/listing.html` with
-  every real number and amount replaced, plus a `tests/ovh/listing.json` saying
-  what the selectors should read. CI then catches the next OVH redesign before a
-  user does.
+- Bump `version` and add yourself to `maintainers`.
 - Say which region and account type you tested, and how many invoices it found.
+- If you changed the API calls, quote the response shape you actually saw. The
+  schema is generous about what a field *may* contain; only a real answer says
+  what it *does*.

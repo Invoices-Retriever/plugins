@@ -2,8 +2,8 @@
   "$schema": "../schema/plugin-v1.schema.json",
   "id": "ovh",
   "name": "OVHcloud",
-  "version": "0.8.0",
-  "description": "Factures OVHcloud. Connexion et double authentification vérifiées sur le portail réel ; les sélecteurs du tableau de facturation restent à confirmer — voir ovh.NOTES.md.",
+  "version": "0.9.0",
+  "description": "Factures OVHcloud, lues via l'API v6 du portail plutôt que par extraction du tableau. Connexion et double authentification vérifiées sur le portail réel.",
   "homepage": "https://www.ovhcloud.com",
   "maintainers": ["@cldt-fr"],
   "country": ["FR", "EU"],
@@ -153,52 +153,43 @@
     {
       "action": "navigate",
       "url": "https://manager.{{config.region}}.ovhcloud.com/billing/#/history",
-      "description": "L'application de facturation elle-même. Le manager l'affiche dans une iframe ; y aller directement évite la coquille de navigation."
+      "description": "L'appel d'API part de cette page : il hérite ainsi de la session déjà établie, sans second jeu d'identifiants."
     },
     {
       "action": "waitForNetworkIdle",
-      "idleMs": 1200,
-      "timeout": 30000
+      "idleMs": 800,
+      "timeout": 25000
     },
     {
-      "action": "waitForElement",
-      "selector": "table.oui-datagrid tbody tr",
-      "timeout": 25000,
-      "description": "Vérifié : le tableau est un oui-datagrid Angular."
+      "action": "apiRequest",
+      "url": "https://manager.{{config.region}}.ovhcloud.com/engine/apiv6/me/bill?date.from={{cutoff.date}}T00:00:00Z",
+      "assignTo": "billIds",
+      "timeout": 30000,
+      "description": "API v6 publique d'OVHcloud, documentée sur https://eu.api.ovh.com/1.0/me.json. /me/bill répond une liste d'identifiants, filtrable par date — ce qui correspond exactement à la collecte incrémentale."
     },
     {
       "action": "extractAll",
-      "selector": "table.oui-datagrid tbody tr",
+      "items": "{{billIds}}",
       "limit": 60,
-      "description": "Les colonnes et le lien de téléchargement restent à confirmer.",
-      "fields": {
-        "billId": {
-          "selector": "td:nth-child(1)"
-        },
-        "date": {
-          "selector": "td:nth-child(2)"
-        },
-        "total": {
-          "selector": "td:nth-child(4)"
-        },
-        "pdf": {
-          "selector": "a[href*='pdf'], a[download], a[href*='download']",
-          "attribute": "href",
-          "optional": true
-        }
-      },
+      "description": "Une liste d'identifiants nus : chacun est {{item}}.",
       "forEach": [
         {
+          "action": "apiRequest",
+          "url": "https://manager.{{config.region}}.ovhcloud.com/engine/apiv6/me/bill/{{item}}",
+          "assignTo": "bill",
+          "timeout": 30000,
+          "description": "billing.Bill : billId, date, pdfUrl, priceWithTax."
+        },
+        {
           "action": "downloadPdf",
-          "url": "{{item.pdf}}",
+          "url": "{{bill.pdfUrl}}",
           "timeout": 60000,
           "document": {
-            "id": "{{item.billId}}",
-            "date": "{{item.date}}",
-            "total": "{{item.total}}",
-            "number": "{{item.billId}}",
-            "issuer": "OVHcloud",
-            "currency": "EUR"
+            "id": "{{bill.billId}}",
+            "date": "{{bill.date}}",
+            "total": "{{bill.priceWithTax.text}}",
+            "number": "{{bill.billId}}",
+            "issuer": "OVHcloud"
           }
         }
       ]
