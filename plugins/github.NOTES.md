@@ -104,6 +104,15 @@ If it works, change `status` to `active` and say in the pull request whether you
 tested a personal account or an organisation — they are different enough that
 one working does not prove the other does.
 
+## The asset domain is not optional
+
+GitHub serves every stylesheet and script from `github.githubassets.com`, which
+`*.github.com` does not cover — different registrable domain, not a subdomain.
+Leave it out of `allowedDomains` and the content blocker drops the CSS: pages
+render as unstyled HTML. The DOM is server-rendered, so extraction can still
+work by accident, but the sign-in flow is unusable and nothing is debuggable.
+`*.githubassets.com` is in the list for that reason, not for decoration.
+
 ## Known limits
 
 - GitHub keeps a sliding window of payment history: 18 months on the account
