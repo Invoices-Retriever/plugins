@@ -1,0 +1,140 @@
+{
+  "$schema": "../schema/plugin-v1.schema.json",
+  "id": "github",
+  "name": "GitHub",
+  "version": "1.0.0",
+  "description": "Reçus GitHub — compte personnel ou organisation. GitHub ne sert ses reçus qu'en HTML, ils sont donc imprimés en PDF.",
+  "homepage": "https://github.com",
+  "country": ["US", "EU"],
+  "tags": ["saas", "developer"],
+  "engine": ">=1.0.0",
+  "allowedDomains": [
+    "github.com",
+    "*.github.com",
+    "githubusercontent.com",
+    "*.githubusercontent.com"
+  ],
+  "configSchema": {
+    "account": {
+      "type": "string",
+      "label": "Organisation",
+      "help": "Laissez vide pour votre compte personnel, ou saisissez le nom de l'organisation à facturer.",
+      "placeholder": "mon-organisation"
+    }
+  },
+  "autofill": false,
+  "checkAuth": [
+    {
+      "action": "if",
+      "condition": {
+        "variableIsSet": "config.account"
+      },
+      "then": [
+        {
+          "action": "navigate",
+          "url": "https://github.com/organizations/{{config.account}}/settings/billing"
+        }
+      ],
+      "else": [
+        {
+          "action": "navigate",
+          "url": "https://github.com/settings/billing"
+        }
+      ]
+    },
+    {
+      "action": "waitForNetworkIdle",
+      "idleMs": 800,
+      "timeout": 25000
+    },
+    {
+      "action": "checkURL",
+      "url": "*github.com/*settings/billing*"
+    }
+  ],
+  "startAuth": [
+    {
+      "action": "navigate",
+      "url": "https://github.com/login",
+      "description": "GitHub demande souvent une vérification par appareil ; l'utilisateur termine la connexion lui-même."
+    },
+    {
+      "action": "waitForElement",
+      "selector": "input[name='login']",
+      "timeout": 20000
+    }
+  ],
+  "getDocuments": [
+    {
+      "action": "if",
+      "condition": {
+        "variableIsSet": "config.account"
+      },
+      "then": [
+        {
+          "action": "navigate",
+          "url": "https://github.com/organizations/{{config.account}}/settings/billing/payment_history"
+        }
+      ],
+      "else": [
+        {
+          "action": "navigate",
+          "url": "https://github.com/settings/billing/payment_history"
+        }
+      ]
+    },
+    {
+      "action": "waitForNetworkIdle",
+      "idleMs": 800,
+      "timeout": 30000
+    },
+    {
+      "action": "waitForElement",
+      "selector": "a[href*='/receipt/']",
+      "timeout": 25000
+    },
+    {
+      "action": "extractAll",
+      "selector": "li:has(a[href*='/receipt/']), tr:has(a[href*='/receipt/'])",
+      "limit": 40,
+      "fields": {
+        "date": {
+          "selector": "time",
+          "attribute": "datetime"
+        },
+        "total": {
+          "selector": ".text-right, td:last-child"
+        },
+        "receipt": {
+          "selector": "a[href*='/receipt/']",
+          "attribute": "href"
+        }
+      },
+      "forEach": [
+        {
+          "action": "navigate",
+          "url": "{{item.receipt}}"
+        },
+        {
+          "action": "waitForNetworkIdle",
+          "idleMs": 500,
+          "timeout": 20000
+        },
+        {
+          "action": "printPdf",
+          "description": "GitHub ne sert ses reçus qu'en HTML",
+          "document": {
+            "id": "{{item.receipt}}",
+            "date": "{{item.date}}",
+            "total": "{{item.total}}",
+            "issuer": "GitHub",
+            "type": "receipt",
+            "currency": "USD"
+          }
+        }
+      ]
+    }
+  ],
+  "maintainers": ["@cldt-fr"],
+  "status": "unverified"
+}
