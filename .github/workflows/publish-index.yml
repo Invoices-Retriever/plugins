@@ -87,10 +87,22 @@ jobs:
           fi
           IRCTL="$(cd .app && swift build -c release --show-bin-path)/irctl"
           printf '%s' "$INDEX_SIGNING_KEY" > /tmp/signing.key
-          "$IRCTL" validate plugins
+          trap 'rm -f /tmp/signing.key' EXIT
+
+          # An empty index is a legitimate state, not a failure: it is what the
+          # catalogue looks like before the first plugin has been verified
+          # against a live account. Publishing it signed means the application
+          # can already fetch, verify and install nothing — which is the whole
+          # pipeline working.
+          if compgen -G "plugins/*.json" > /dev/null; then
+            "$IRCTL" validate plugins
+          else
+            echo "::notice::plugins/ holds no verified plugins yet; publishing an empty signed index."
+          fi
+
           "$IRCTL" index plugins --key /tmp/signing.key --out dist --revision "${{ github.run_number }}"
-          rm -f /tmp/signing.key
-          cp -R plugins dist/plugins
+          mkdir -p dist/plugins
+          cp -R plugins/. dist/plugins/
 
       - name: Verify what we are about to publish
         if: steps.app.outputs.available == 'true' && env.skipped != 'true'
