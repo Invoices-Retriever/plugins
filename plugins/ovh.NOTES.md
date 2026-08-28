@@ -15,6 +15,13 @@ Read on `auth.eu.ovhcloud.com/signin/`, so you do not have to take it on trust:
 | Submit button | `#login-submit` ("Se connecter") |
 | Manager host | `manager.<region>.ovhcloud.com`, region is `eu`, `ca` or `us` |
 | Signed-out behaviour | the manager redirects to `auth.<region>.ovhcloud.com/signin/` |
+| Two-factor field | `#totp` — `input[type=number][name=totp]` inside `form#2fa` |
+| Two-factor submit | `#totpSubmit` — `button[name="otpMethod"]` |
+
+**Click `#totpSubmit`; do not submit the two-factor form from the keyboard.**
+The button carries `name="otpMethod"`, and a submission without it tells OVHcloud
+that a form arrived but not which method was chosen. The page comes back
+unchanged, which reads as nothing happening at all.
 
 **Do not "fix" the selectors back to `input[name=…]`.** OVH randomises the
 `name` attribute of both fields on every page load — `name="6736c45e"` on one
