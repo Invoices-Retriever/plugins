@@ -1,6 +1,6 @@
 {
   "engine" : "1.0.0",
-  "generatedAt" : "2026-08-28T10:22:09Z",
+  "generatedAt" : "2026-08-28T10:33:01Z",
   "plugins" : [
     {
       "country" : [
@@ -10,7 +10,7 @@
       "id" : "ovh",
       "name" : "OVHcloud",
       "path" : "plugins/ovh.json",
-      "sha256" : "8dfefcc08fa0e3f7dc8be1ae951ac8ba88192d72af2b51d8c1a8fe637b13ca41",
+      "sha256" : "b611de9d9885ea199f6a02f0079c443a4c3cd102866e4f4b8b919ea06332f69d",
       "status" : "unverified",
       "tags" : [
         "hosting",
@@ -18,8 +18,8 @@
         "domains"
       ],
       "usesJs" : false,
-      "version" : "0.5.0"
+      "version" : "0.6.0"
     }
   ],
-  "revision" : 8
+  "revision" : 9
 }
