@@ -50,12 +50,25 @@ The timestamp is **OVHcloud's**, not this machine's: `/auth/time` is read once
 per run and the local clock advances it afterwards. A user whose Mac is a minute
 off would otherwise be rejected for no visible reason.
 
-## Regions
+## Regions, and why allowedDomains covers all of ovh.com
 
 `baseUrl` is the European endpoint. Canada is `https://ca.api.ovh.com/1.0` and
-the United States `https://api.us.ovhcloud.com/1.0`; both are already in
-`allowedDomains`. Making it a config option would be a small change to
-`baseUrl`, and is worth doing the first time somebody outside Europe asks.
+the United States `https://api.us.ovhcloud.com/1.0`. Making it a config option
+is a small change to `baseUrl`, worth doing the first time somebody outside
+Europe asks.
+
+The sandbox lists OVHcloud's domains with wildcards — `ovh.com`, `*.ovh.com`,
+and the same for `ovhcloud.com` and `ovh.net` — rather than the three or four
+hosts the plugin is known to touch. That is deliberate. `pdfUrl` points at
+`www.ovh.com`, the API at `eu.api.ovh.com`, and neither is documented as stable;
+enumerating them means a user discovers the next one as a failed collection.
+Covering the supplier's own domains costs nothing in safety — those are the
+hosts this plugin is *for* — and removes a whole class of breakage.
+
+What it deliberately does not do is allow every domain. The keys are injected
+into whatever host a step names, so an unrestricted plugin could send them
+anywhere; the sandbox is the one control that makes a plugin from a catalogue
+safe to run at all.
 
 ## Still to verify
 
