@@ -119,6 +119,27 @@ jobs:
             exit 1
           fi
 
+      - name: The domain sandbox must compile
+        if: steps.app.outputs.available == 'true'
+        run: |
+          # WebKit's content blocker accepts only a subset of regular
+          # expressions, and a list it refuses takes every session down with it
+          # — the user sees "WKErrorDomain error 6" and nothing works. Only a
+          # real compile catches that, so CI does one per plugin.
+          IRCTL="$(cd .app && swift build -c release --show-bin-path)/irctl"
+          failed=0
+          for file in plugins/*.json drafts/*.json docs/example-portal.json; do
+            [ -e "$file" ] || continue
+            if ! "$IRCTL" sandbox "$file" > /tmp/sandbox.log 2>&1; then
+              echo "::error file=$file::the domain sandbox does not compile"
+              cat /tmp/sandbox.log
+              failed=1
+            else
+              echo "✓ $file"
+            fi
+          done
+          exit $failed
+
       - name: Validate
         if: steps.app.outputs.available == 'true'
         run: |
