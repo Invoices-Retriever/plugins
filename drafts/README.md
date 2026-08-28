@@ -8,6 +8,18 @@ are where they will break.
 They are validated by CI like anything else, and they are **not** included in
 the signed index, so no user installs one by accident.
 
+## What "unverified" means, concretely
+
+`ovh.json` is the worked example. Its sign-in half **was** checked against the
+real portal, and doing so found a trap that a plausible-looking guess walks
+straight into: OVH randomises the `name` attribute of its login fields, and
+`input[name='account']` matches the hidden "forgot my password" field rather
+than the customer number. A plugin using it reports a failed login and never
+says why.
+
+See `ovh.NOTES.md` for what was verified, what was not, and the three commands
+that close the gap.
+
 ## Adopting one
 
 You need an account with the supplier. Then:
