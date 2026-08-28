@@ -1,0 +1,95 @@
+{
+  "$schema": "../schema/plugin-v1.schema.json",
+  "id": "ovh",
+  "name": "OVHcloud",
+  "version": "0.1.0",
+  "description": "Factures OVHcloud (hébergement, domaines, cloud). Brouillon non vérifié sur un compte réel.",
+  "homepage": "https://www.ovhcloud.com",
+  "country": ["FR", "EU"],
+  "tags": ["hosting", "cloud", "domains"],
+  "engine": ">=1.0.0",
+  "allowedDomains": ["ovh.com", "*.ovh.com", "ovhcloud.com", "*.ovhcloud.com"],
+  "configSchema": {
+    "customerID": {
+      "type": "string",
+      "label": "Identifiant client OVH",
+      "help": "De la forme ab12345-ovh, visible en haut à droite du manager.",
+      "required": true,
+      "placeholder": "ab12345-ovh"
+    },
+    "password": { "type": "password", "label": "Mot de passe", "required": true },
+    "mfa": {
+      "type": "totp",
+      "label": "Secret de double authentification",
+      "help": "Facultatif. Le secret affiché lors de l'activation de la 2FA, ou le lien otpauth:// complet."
+    }
+  },
+  "autofill": true,
+  "checkAuth": [
+    { "action": "navigate", "url": "https://www.ovh.com/manager/#/billing/history" },
+    { "action": "waitForNetworkIdle", "idleMs": 800, "timeout": 25000 },
+    { "action": "checkURL", "url": "*/manager/*" },
+    {
+      "action": "checkElementExists",
+      "selector": "[data-ovh-user-id], .oui-navbar__user",
+      "timeout": 20000
+    }
+  ],
+  "startAuth": [
+    { "action": "navigate", "url": "https://www.ovh.com/auth/" },
+    { "action": "waitForElement", "selector": "input[name='account']", "timeout": 20000 },
+    { "action": "type", "selector": "input[name='account']", "value": "{{config.customerID}}" },
+    { "action": "type", "selector": "input[name='password']", "value": "{{secret.password}}" },
+    { "action": "click", "selector": "button[type='submit']" },
+    { "action": "waitForNavigation", "timeout": 30000 },
+    {
+      "action": "if",
+      "condition": { "elementExists": "input[name='emailCode'], input[name='totpCode']" },
+      "then": [
+        {
+          "action": "type",
+          "selector": "input[name='totpCode']",
+          "value": "{{totp.mfa}}",
+          "pressEnter": true,
+          "description": "OVH demande le code TOTP quand la 2FA est active"
+        },
+        { "action": "waitForNavigation", "timeout": 30000 }
+      ]
+    }
+  ],
+  "getDocuments": [
+    { "action": "navigate", "url": "https://www.ovh.com/manager/#/billing/history" },
+    { "action": "waitForNetworkIdle", "idleMs": 1000, "timeout": 30000 },
+    {
+      "action": "waitForElement",
+      "selector": "[data-testid='bills-table'] tbody tr, table tbody tr",
+      "timeout": 25000
+    },
+    {
+      "action": "extractAll",
+      "selector": "[data-testid='bills-table'] tbody tr, table tbody tr",
+      "limit": 60,
+      "fields": {
+        "number": { "selector": "td:nth-child(1)" },
+        "date": { "selector": "td:nth-child(2)" },
+        "total": { "selector": "td:nth-child(4)" },
+        "pdf": { "selector": "a[href*='.pdf'], a[download]", "attribute": "href" }
+      },
+      "forEach": [
+        {
+          "action": "downloadPdf",
+          "url": "{{item.pdf}}",
+          "timeout": 60000,
+          "document": {
+            "id": "{{item.number}}",
+            "date": "{{item.date}}",
+            "total": "{{item.total}}",
+            "number": "{{item.number}}",
+            "issuer": "OVHcloud",
+            "currency": "EUR"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,95 @@
+name: Validate plugins
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  # Twenty seconds of feedback for the common mistakes. Everything this rejects
+  # would also be rejected by the authoritative validator below.
+  fast:
+    name: Structure and secrets
+    runs-on: ubuntu-latest
+    outputs:
+      needs_review: ${{ steps.validate.outputs.needs_review }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: JSON Schema
+        run: |
+          npm install --no-save ajv@8 ajv-formats@3
+          node scripts/schema-check.mjs
+
+      - name: Project rules
+        id: validate
+        run: node scripts/validate.mjs
+
+      - name: Formatting
+        run: npx --yes prettier@3 --check "plugins/*.json" "drafts/*.json"
+
+      - name: Secret scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # The same validator the application runs. Slower, and the one that decides.
+  authoritative:
+    name: irctl lint
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check out the application
+        uses: actions/checkout@v4
+        with:
+          repository: Invoices-Retriever/mac-os-app
+          path: .app
+
+      - name: Cache the Swift build
+        uses: actions/cache@v4
+        with:
+          path: .app/.build
+          key: swift-${{ runner.os }}-${{ hashFiles('.app/Package.swift', '.app/Sources/IRCore/**') }}
+          restore-keys: swift-${{ runner.os }}-
+
+      - name: Build irctl
+        working-directory: .app
+        run: swift build -c release --product irctl
+
+      - name: Schema is in step with the application
+        run: |
+          if ! diff -q schema/plugin-v1.schema.json .app/schema/plugin-v1.schema.json; then
+            echo "::error::schema/plugin-v1.schema.json differs from the application's copy."
+            echo "The schema is owned by the application repository; copy it across rather than editing it here."
+            diff schema/plugin-v1.schema.json .app/schema/plugin-v1.schema.json || true
+            exit 1
+          fi
+
+      - name: Validate
+        run: |
+          IRCTL="$(cd .app && swift build -c release --show-bin-path)/irctl"
+          "$IRCTL" validate plugins
+          if [ -n "$(ls -A drafts/*.json 2>/dev/null)" ]; then "$IRCTL" validate drafts; fi
+
+  selectors:
+    name: Offline selector tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Run captures
+        run: |
+          npm install --no-save linkedom@0.18
+          node scripts/test-selectors.mjs

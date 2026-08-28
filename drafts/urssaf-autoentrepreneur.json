@@ -1,0 +1,80 @@
+{
+  "$schema": "../schema/plugin-v1.schema.json",
+  "id": "urssaf-autoentrepreneur",
+  "name": "URSSAF — auto-entrepreneur",
+  "version": "0.1.0",
+  "description": "Attestations et avis d'échéance URSSAF pour les auto-entrepreneurs. Ce ne sont pas des factures au sens commercial, mais des pièces que le comptable réclame. Brouillon non vérifié sur un compte réel.",
+  "homepage": "https://www.autoentrepreneur.urssaf.fr",
+  "country": ["FR"],
+  "tags": ["tax", "social", "government"],
+  "engine": ">=1.0.0",
+  "allowedDomains": ["urssaf.fr", "*.urssaf.fr"],
+  "configSchema": {
+    "siret": {
+      "type": "string",
+      "label": "SIRET",
+      "help": "Utilisé comme identifiant de connexion sur le portail auto-entrepreneur.",
+      "required": true
+    },
+    "password": { "type": "password", "label": "Mot de passe", "required": true }
+  },
+  "autofill": true,
+  "checkAuth": [
+    { "action": "navigate", "url": "https://www.autoentrepreneur.urssaf.fr/portail/accueil.html" },
+    { "action": "waitForNetworkIdle", "idleMs": 800, "timeout": 25000 },
+    {
+      "action": "checkElementExists",
+      "selector": "input[name='j_username'], #identifiant",
+      "expect": false,
+      "timeout": 8000
+    }
+  ],
+  "startAuth": [
+    { "action": "navigate", "url": "https://www.autoentrepreneur.urssaf.fr/portail/accueil.html" },
+    {
+      "action": "waitForElement",
+      "selector": "input[name='j_username'], #identifiant",
+      "timeout": 20000
+    },
+    {
+      "action": "type",
+      "selector": "input[name='j_username'], #identifiant",
+      "value": "{{config.siret}}"
+    },
+    { "action": "type", "selector": "input[type='password']", "value": "{{secret.password}}" },
+    { "action": "click", "selector": "button[type='submit'], input[type='submit']" },
+    { "action": "waitForNavigation", "timeout": 30000 }
+  ],
+  "getDocuments": [
+    {
+      "action": "navigate",
+      "url": "https://www.autoentrepreneur.urssaf.fr/portail/accueil/mes-documents.html"
+    },
+    { "action": "waitForNetworkIdle", "idleMs": 1000, "timeout": 30000 },
+    { "action": "waitForElement", "selector": "table tbody tr", "timeout": 25000 },
+    {
+      "action": "extractAll",
+      "selector": "table tbody tr",
+      "limit": 40,
+      "fields": {
+        "label": { "selector": "td:nth-child(1)" },
+        "date": { "selector": "td:nth-child(2)" },
+        "pdf": { "selector": "a[href*='pdf'], a[href*='telecharger']", "attribute": "href" }
+      },
+      "forEach": [
+        {
+          "action": "downloadPdf",
+          "url": "{{item.pdf}}",
+          "timeout": 60000,
+          "document": {
+            "id": "urssaf-{{item.date}}-{{item.label}}",
+            "date": "{{item.date}}",
+            "issuer": "URSSAF",
+            "type": "statement",
+            "currency": "EUR"
+          }
+        }
+      ]
+    }
+  ]
+}

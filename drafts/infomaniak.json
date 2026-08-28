@@ -1,0 +1,83 @@
+{
+  "$schema": "../schema/plugin-v1.schema.json",
+  "id": "infomaniak",
+  "name": "Infomaniak",
+  "version": "0.1.0",
+  "description": "Factures Infomaniak (hébergement, kSuite, Swiss Backup). Brouillon non vérifié sur un compte réel.",
+  "homepage": "https://www.infomaniak.com",
+  "country": ["CH", "EU"],
+  "tags": ["hosting", "cloud", "email"],
+  "engine": ">=1.0.0",
+  "allowedDomains": ["infomaniak.com", "*.infomaniak.com"],
+  "configSchema": {
+    "email": { "type": "string", "label": "Adresse e-mail du compte", "required": true },
+    "password": { "type": "password", "label": "Mot de passe", "required": true },
+    "mfa": { "type": "totp", "label": "Secret de double authentification" }
+  },
+  "autofill": true,
+  "checkAuth": [
+    { "action": "navigate", "url": "https://manager.infomaniak.com/v3/invoicing/invoices" },
+    { "action": "waitForNetworkIdle", "idleMs": 800, "timeout": 25000 },
+    { "action": "checkURL", "url": "*manager.infomaniak.com*" }
+  ],
+  "startAuth": [
+    { "action": "navigate", "url": "https://login.infomaniak.com/" },
+    {
+      "action": "waitForElement",
+      "selector": "input[type='email'], input[name='login']",
+      "timeout": 20000
+    },
+    {
+      "action": "type",
+      "selector": "input[type='email'], input[name='login']",
+      "value": "{{config.email}}"
+    },
+    { "action": "type", "selector": "input[type='password']", "value": "{{secret.password}}" },
+    { "action": "click", "selector": "button[type='submit']" },
+    { "action": "waitForNavigation", "timeout": 30000 },
+    {
+      "action": "if",
+      "condition": { "elementExists": "input[autocomplete='one-time-code'], input[name='code']" },
+      "then": [
+        {
+          "action": "type",
+          "selector": "input[autocomplete='one-time-code'], input[name='code']",
+          "value": "{{totp.mfa}}",
+          "pressEnter": true
+        },
+        { "action": "waitForNavigation", "timeout": 30000 }
+      ]
+    }
+  ],
+  "getDocuments": [
+    { "action": "navigate", "url": "https://manager.infomaniak.com/v3/invoicing/invoices" },
+    { "action": "waitForNetworkIdle", "idleMs": 1000, "timeout": 30000 },
+    { "action": "waitForElement", "selector": "table tbody tr", "timeout": 25000 },
+    {
+      "action": "extractAll",
+      "selector": "table tbody tr",
+      "limit": 60,
+      "fields": {
+        "number": { "selector": "td:nth-child(1)" },
+        "date": { "selector": "td:nth-child(2)" },
+        "total": { "selector": "td:nth-child(4)" },
+        "pdf": { "selector": "a[href*='pdf'], a[download]", "attribute": "href" }
+      },
+      "forEach": [
+        {
+          "action": "downloadPdf",
+          "url": "{{item.pdf}}",
+          "timeout": 60000,
+          "document": {
+            "id": "{{item.number}}",
+            "date": "{{item.date}}",
+            "total": "{{item.total}}",
+            "number": "{{item.number}}",
+            "issuer": "Infomaniak",
+            "currency": "CHF"
+          }
+        }
+      ]
+    }
+  ]
+}

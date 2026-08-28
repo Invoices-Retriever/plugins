@@ -1,0 +1,73 @@
+{
+  "$schema": "../schema/plugin-v1.schema.json",
+  "id": "free-mobile",
+  "name": "Free Mobile",
+  "version": "0.1.0",
+  "description": "Factures Free Mobile. Le portail ne sert que du HTML pour certaines périodes, d'où l'impression en PDF. Brouillon non vérifié sur un compte réel.",
+  "homepage": "https://mobile.free.fr",
+  "country": ["FR"],
+  "tags": ["telecom", "mobile"],
+  "engine": ">=1.0.0",
+  "allowedDomains": ["free.fr", "*.free.fr"],
+  "configSchema": {
+    "login": {
+      "type": "string",
+      "label": "Identifiant Free Mobile",
+      "help": "Le numéro à 8 chiffres figurant sur votre facture.",
+      "required": true
+    },
+    "password": { "type": "password", "label": "Mot de passe", "required": true }
+  },
+  "autofill": true,
+  "checkAuth": [
+    { "action": "navigate", "url": "https://mobile.free.fr/account/mes-factures" },
+    { "action": "waitForNetworkIdle", "idleMs": 800, "timeout": 25000 },
+    {
+      "action": "checkElementExists",
+      "selector": "input[name='login-ident']",
+      "expect": false,
+      "timeout": 8000
+    }
+  ],
+  "startAuth": [
+    { "action": "navigate", "url": "https://mobile.free.fr/account/" },
+    { "action": "waitForElement", "selector": "input[name='login-ident']", "timeout": 20000 },
+    { "action": "type", "selector": "input[name='login-ident']", "value": "{{config.login}}" },
+    { "action": "type", "selector": "input[name='login-pwd']", "value": "{{secret.password}}" },
+    { "action": "click", "selector": "input[type='submit'], button[type='submit']" },
+    { "action": "waitForNavigation", "timeout": 30000 }
+  ],
+  "getDocuments": [
+    { "action": "navigate", "url": "https://mobile.free.fr/account/mes-factures" },
+    {
+      "action": "waitForElement",
+      "selector": "a[href*='facture'], table tbody tr",
+      "timeout": 25000
+    },
+    {
+      "action": "extractAll",
+      "selector": "table tbody tr",
+      "limit": 36,
+      "fields": {
+        "date": { "selector": "td:nth-child(1)" },
+        "total": { "selector": "td:nth-child(2)" },
+        "pdf": { "selector": "a[href*='facture']", "attribute": "href" }
+      },
+      "forEach": [
+        {
+          "action": "downloadPdf",
+          "url": "{{item.pdf}}",
+          "timeout": 60000,
+          "description": "Free ne numérote pas ses factures sur le portail ; la date de période sert d'identifiant stable.",
+          "document": {
+            "id": "free-mobile-{{item.date}}",
+            "date": "{{item.date}}",
+            "total": "{{item.total}}",
+            "issuer": "Free Mobile",
+            "currency": "EUR"
+          }
+        }
+      ]
+    }
+  ]
+}

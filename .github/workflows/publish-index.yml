@@ -1,0 +1,82 @@
+name: Publish the plugin index
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "plugins/**"
+      - "schema/**"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-index
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check out the application
+        uses: actions/checkout@v4
+        with:
+          repository: Invoices-Retriever/mac-os-app
+          path: .app
+
+      - name: Cache the Swift build
+        uses: actions/cache@v4
+        with:
+          path: .app/.build
+          key: swift-${{ runner.os }}-${{ hashFiles('.app/Package.swift', '.app/Sources/IRCore/**') }}
+          restore-keys: swift-${{ runner.os }}-
+
+      - name: Build irctl
+        working-directory: .app
+        run: swift build -c release --product irctl
+
+      - name: Build and sign the index
+        env:
+          # Ed25519 private key, base64. Generated with `irctl keygen`; the
+          # matching public key is compiled into the application, so an index
+          # signed with anything else is refused by every installed copy.
+          INDEX_SIGNING_KEY: ${{ secrets.INDEX_SIGNING_KEY }}
+        run: |
+          if [ -z "$INDEX_SIGNING_KEY" ]; then
+            echo "::error::INDEX_SIGNING_KEY is not set. The app refuses an unsigned index, so publishing one would be worse than publishing nothing."
+            exit 1
+          fi
+          IRCTL="$(cd .app && swift build -c release --show-bin-path)/irctl"
+          printf '%s' "$INDEX_SIGNING_KEY" > /tmp/signing.key
+          "$IRCTL" validate plugins
+          "$IRCTL" index plugins --key /tmp/signing.key --out dist --revision "${{ github.run_number }}"
+          rm -f /tmp/signing.key
+          cp -R plugins dist/plugins
+
+      - name: Verify what we are about to publish
+        run: |
+          test -s dist/index.json
+          test -s dist/index.json.sig
+          python3 - <<'PY'
+          import json, hashlib, pathlib, sys
+          index = json.loads(pathlib.Path("dist/index.json").read_text())
+          bad = 0
+          for item in index["plugins"]:
+              data = pathlib.Path("dist") / item["path"]
+              digest = hashlib.sha256(data.read_bytes()).hexdigest()
+              if digest != item["sha256"]:
+                  print(f"::error::checksum mismatch for {item['id']}")
+                  bad += 1
+          print(f"{len(index['plugins'])} plugin(s), revision {index['revision']}")
+          sys.exit(1 if bad else 0)
+          PY
+
+      - name: Publish
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+          publish_branch: gh-pages

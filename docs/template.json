@@ -1,0 +1,63 @@
+{
+  "$schema": "../schema/plugin-v1.schema.json",
+  "id": "template",
+  "name": "My Supplier",
+  "version": "0.1.0",
+  "description": "One sentence: which documents this collects, and any limitation worth knowing.",
+  "homepage": "https://my-supplier.example",
+  "maintainers": ["@your-github-handle"],
+  "country": ["FR"],
+  "tags": ["saas"],
+  "engine": ">=1.0.0",
+
+  "allowedDomains": ["my-supplier.example", "*.my-supplier.example"],
+
+  "configSchema": {
+    "username": { "type": "string", "label": "Identifiant", "required": true },
+    "password": { "type": "password", "label": "Mot de passe", "required": true }
+  },
+  "autofill": true,
+
+  "checkAuth": [
+    { "action": "navigate", "url": "https://my-supplier.example/billing" },
+    { "action": "waitForNetworkIdle", "idleMs": 800, "timeout": 20000 },
+    { "action": "checkElementExists", "selector": "REPLACE-ME-signed-in-only-element" }
+  ],
+
+  "startAuth": [
+    { "action": "navigate", "url": "https://my-supplier.example/login" },
+    { "action": "waitForElement", "selector": "input[name='username']" },
+    { "action": "type", "selector": "input[name='username']", "value": "{{config.username}}" },
+    { "action": "type", "selector": "input[type='password']", "value": "{{secret.password}}" },
+    { "action": "click", "selector": "button[type='submit']" },
+    { "action": "waitForNavigation", "timeout": 30000 }
+  ],
+
+  "getDocuments": [
+    { "action": "navigate", "url": "https://my-supplier.example/billing" },
+    { "action": "waitForElement", "selector": "REPLACE-ME-row-selector" },
+    {
+      "action": "extractAll",
+      "selector": "REPLACE-ME-row-selector",
+      "fields": {
+        "number": { "selector": "REPLACE-ME" },
+        "date": { "selector": "REPLACE-ME" },
+        "total": { "selector": "REPLACE-ME" },
+        "pdf": { "selector": "REPLACE-ME", "attribute": "href" }
+      },
+      "forEach": [
+        {
+          "action": "downloadPdf",
+          "url": "{{item.pdf}}",
+          "document": {
+            "id": "{{item.number}}",
+            "date": "{{item.date}}",
+            "total": "{{item.total}}",
+            "number": "{{item.number}}",
+            "issuer": "My Supplier"
+          }
+        }
+      ]
+    }
+  ]
+}

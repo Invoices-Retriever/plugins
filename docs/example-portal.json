@@ -1,0 +1,101 @@
+{
+  "$schema": "../schema/plugin-v1.schema.json",
+  "id": "example-portal",
+  "name": "Example Portal",
+  "version": "1.0.0",
+  "description": "A complete, working plugin against a fictional portal. Copy it as a starting point — it exercises every part of the format you are likely to need.",
+  "homepage": "https://example.com",
+  "maintainers": ["@invoices-retriever"],
+  "country": ["FR"],
+  "tags": ["reference"],
+  "engine": ">=1.0.0",
+  "allowedDomains": ["example.com", "*.example.com"],
+  "configSchema": {
+    "customerID": {
+      "type": "string",
+      "label": "Customer number",
+      "help": "Shown at the top right of the portal, in the form AB-12345.",
+      "required": true,
+      "placeholder": "AB-12345"
+    },
+    "password": {
+      "type": "password",
+      "label": "Password",
+      "required": true
+    },
+    "mfa": {
+      "type": "totp",
+      "label": "Two-factor secret",
+      "help": "Optional. Paste the secret shown when you enabled two-factor authentication, or the whole otpauth:// link."
+    }
+  },
+  "autofill": true,
+  "checkAuth": [
+    {
+      "action": "navigate",
+      "url": "https://example.com/account/billing",
+      "description": "Go straight to the billing page"
+    },
+    {
+      "action": "waitForElement",
+      "selector": "#billing-table",
+      "timeout": 15000
+    },
+    {
+      "action": "checkElementExists",
+      "selector": "#billing-table",
+      "description": "Only a signed-in customer sees the invoice table"
+    }
+  ],
+  "startAuth": [
+    { "action": "navigate", "url": "https://example.com/login" },
+    { "action": "waitForElement", "selector": "input[name='customer']" },
+    { "action": "type", "selector": "input[name='customer']", "value": "{{config.customerID}}" },
+    { "action": "type", "selector": "input[type='password']", "value": "{{secret.password}}" },
+    { "action": "click", "selector": "button[type='submit']" },
+    { "action": "waitForNavigation", "timeout": 30000 },
+    {
+      "action": "if",
+      "condition": { "elementExists": "input[name='otp']" },
+      "then": [
+        {
+          "action": "type",
+          "selector": "input[name='otp']",
+          "value": "{{totp.mfa}}",
+          "pressEnter": true,
+          "description": "Two-factor step, only when the portal asks for it"
+        },
+        { "action": "waitForNavigation", "timeout": 30000 }
+      ]
+    }
+  ],
+  "getDocuments": [
+    { "action": "navigate", "url": "https://example.com/account/billing" },
+    { "action": "waitForElement", "selector": "#billing-table tr.invoice-row" },
+    {
+      "action": "extractAll",
+      "selector": "#billing-table tr.invoice-row",
+      "description": "One row per invoice",
+      "fields": {
+        "number": { "selector": "td.number" },
+        "date": { "selector": "td.date" },
+        "total": { "selector": "td.total" },
+        "pdf": { "selector": "a.download", "attribute": "href" }
+      },
+      "forEach": [
+        {
+          "action": "downloadPdf",
+          "url": "{{item.pdf}}",
+          "document": {
+            "id": "{{item.number}}",
+            "date": "{{item.date}}",
+            "total": "{{item.total}}",
+            "number": "{{item.number}}",
+            "issuer": "Example Portal",
+            "type": "invoice"
+          }
+        }
+      ]
+    }
+  ]
+}

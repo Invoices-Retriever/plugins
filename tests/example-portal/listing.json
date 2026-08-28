@@ -1,0 +1,10 @@
+{
+  "step": "getDocuments[2]",
+  "minimumRows": 3,
+  "fields": {
+    "number": "F-2026-001",
+    "date": "31/01/2026",
+    "total": "120,00 €",
+    "pdf": "https://cdn.example.com/bills/F-2026-001.pdf"
+  }
+}

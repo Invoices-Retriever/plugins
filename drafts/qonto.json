@@ -1,0 +1,66 @@
+{
+  "$schema": "../schema/plugin-v1.schema.json",
+  "id": "qonto",
+  "name": "Qonto",
+  "version": "0.1.0",
+  "description": "Factures d'abonnement Qonto. Ne collecte pas les relevés bancaires ni les justificatifs des clients. Brouillon non vérifié sur un compte réel.",
+  "homepage": "https://qonto.com",
+  "country": ["FR", "EU"],
+  "tags": ["banking", "subscription"],
+  "engine": ">=1.0.0",
+  "allowedDomains": ["qonto.com", "*.qonto.com"],
+  "configSchema": {
+    "email": { "type": "string", "label": "Adresse e-mail du compte", "required": true }
+  },
+  "autofill": false,
+  "checkAuth": [
+    { "action": "navigate", "url": "https://app.qonto.com/settings/billing" },
+    { "action": "waitForNetworkIdle", "idleMs": 800, "timeout": 25000 },
+    { "action": "checkURL", "url": "*app.qonto.com/settings*" }
+  ],
+  "startAuth": [
+    { "action": "navigate", "url": "https://app.qonto.com/signin" },
+    { "action": "waitForElement", "selector": "input[type='email']", "timeout": 20000 },
+    {
+      "action": "type",
+      "selector": "input[type='email']",
+      "value": "{{config.email}}",
+      "description": "Le mot de passe et la validation par l'application mobile restent à la charge de l'utilisateur : Qonto impose une confirmation hors du navigateur."
+    }
+  ],
+  "getDocuments": [
+    { "action": "navigate", "url": "https://app.qonto.com/settings/billing" },
+    { "action": "waitForNetworkIdle", "idleMs": 1000, "timeout": 30000 },
+    {
+      "action": "waitForElement",
+      "selector": "[data-test-invoice-row], table tbody tr",
+      "timeout": 25000
+    },
+    {
+      "action": "extractAll",
+      "selector": "[data-test-invoice-row], table tbody tr",
+      "limit": 40,
+      "fields": {
+        "number": { "selector": "td:nth-child(1)" },
+        "date": { "selector": "td:nth-child(2)" },
+        "total": { "selector": "td:nth-child(3)" },
+        "pdf": { "selector": "a[href*='pdf'], a[download]", "attribute": "href" }
+      },
+      "forEach": [
+        {
+          "action": "downloadPdf",
+          "url": "{{item.pdf}}",
+          "timeout": 60000,
+          "document": {
+            "id": "{{item.number}}",
+            "date": "{{item.date}}",
+            "total": "{{item.total}}",
+            "number": "{{item.number}}",
+            "issuer": "Qonto",
+            "currency": "EUR"
+          }
+        }
+      ]
+    }
+  ]
+}

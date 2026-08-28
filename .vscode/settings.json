@@ -1,0 +1,9 @@
+{
+  "json.schemas": [
+    {
+      "fileMatch": ["plugins/*.json", "drafts/*.json"],
+      "url": "./schema/plugin-v1.schema.json"
+    }
+  ],
+  "editor.formatOnSave": true
+}

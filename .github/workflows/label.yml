@@ -1,0 +1,78 @@
+name: Label and welcome
+
+on:
+  pull_request_target:
+    types: [opened, synchronize]
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Flag plugins that run their own JavaScript
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { execSync } = require('child_process');
+            const changed = execSync(
+              `git diff --name-only origin/${{ github.base_ref }}...HEAD`
+            ).toString().split('\n').filter(f => f.endsWith('.json'));
+
+            const fs = require('fs');
+            const usesJs = changed.filter(file => {
+              if (!fs.existsSync(file)) return false;
+              return JSON.stringify(JSON.parse(fs.readFileSync(file, 'utf8'))).includes('"runJs"');
+            });
+
+            if (usesJs.length > 0) {
+              // §5.4.2 and threat M2: CI alone must never merge these.
+              await github.rest.issues.addLabels({
+                ...context.repo, issue_number: context.issue.number,
+                labels: ['needs-human-review', 'uses-javascript'],
+              });
+              await github.rest.issues.createComment({
+                ...context.repo, issue_number: context.issue.number,
+                body: [
+                  '### This pull request needs a human reviewer',
+                  '',
+                  `It adds or changes a plugin containing \`runJs\`: ${usesJs.map(f => '`' + f + '`').join(', ')}.`,
+                  '',
+                  'That is allowed, but automated checks cannot approve it. A maintainer will read the JavaScript before merging, and users will see a badge saying the plugin runs its own code.',
+                  '',
+                  'If the same result can be had with `extract` and a regular expression, that path merges faster and stays working longer.',
+                ].join('\n'),
+              });
+            }
+
+      - name: Welcome first-time contributors
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: pulls } = await github.rest.pulls.list({
+              ...context.repo, state: 'all', per_page: 100,
+            });
+            const author = context.payload.pull_request.user.login;
+            const previous = pulls.filter(p =>
+              p.user.login === author && p.number !== context.issue.number);
+            if (previous.length > 0) return;
+
+            await github.rest.issues.createComment({
+              ...context.repo, issue_number: context.issue.number,
+              body: [
+                `Thank you for your first contribution, @${author}.`,
+                '',
+                'Two things worth knowing while CI runs:',
+                '',
+                '- **`allowedDomains` is the check that catches most people.** Every host the plugin touches has to be listed, including the CDN the PDFs come from. If a step silently does nothing, a blocked request is the first suspect.',
+                '- **Run it twice.** The second run should download nothing. If it re-downloads, `document.id` is not stable between runs, and users would get duplicates every month.',
+                '',
+                'A maintainer will pick this up shortly. If something in CI is unclear, say so — that is a bug in our tooling, not in your plugin.',
+              ].join('\n'),
+            });

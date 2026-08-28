@@ -1,0 +1,83 @@
+{
+  "$schema": "../schema/plugin-v1.schema.json",
+  "id": "scaleway",
+  "name": "Scaleway",
+  "version": "0.1.0",
+  "description": "Factures Scaleway (Elements, Dedibox). Brouillon non vérifié sur un compte réel.",
+  "homepage": "https://www.scaleway.com",
+  "country": ["FR", "EU"],
+  "tags": ["cloud", "hosting"],
+  "engine": ">=1.0.0",
+  "allowedDomains": ["scaleway.com", "*.scaleway.com", "scw.cloud", "*.scw.cloud"],
+  "configSchema": {
+    "email": { "type": "string", "label": "Adresse e-mail du compte", "required": true },
+    "password": { "type": "password", "label": "Mot de passe", "required": true },
+    "mfa": { "type": "totp", "label": "Secret de double authentification" }
+  },
+  "autofill": true,
+  "checkAuth": [
+    { "action": "navigate", "url": "https://console.scaleway.com/billing/invoices" },
+    { "action": "waitForNetworkIdle", "idleMs": 800, "timeout": 25000 },
+    { "action": "checkURL", "url": "*console.scaleway.com/billing*" }
+  ],
+  "startAuth": [
+    { "action": "navigate", "url": "https://account.scaleway.com/login" },
+    { "action": "waitForElement", "selector": "input[type='email']", "timeout": 20000 },
+    { "action": "type", "selector": "input[type='email']", "value": "{{config.email}}" },
+    { "action": "type", "selector": "input[type='password']", "value": "{{secret.password}}" },
+    { "action": "click", "selector": "button[type='submit']" },
+    { "action": "waitForNavigation", "timeout": 30000 },
+    {
+      "action": "if",
+      "condition": { "elementExists": "input[name='code'], input[autocomplete='one-time-code']" },
+      "then": [
+        {
+          "action": "type",
+          "selector": "input[autocomplete='one-time-code']",
+          "value": "{{totp.mfa}}",
+          "pressEnter": true
+        },
+        { "action": "waitForNavigation", "timeout": 30000 }
+      ]
+    }
+  ],
+  "getDocuments": [
+    { "action": "navigate", "url": "https://console.scaleway.com/billing/invoices" },
+    { "action": "waitForNetworkIdle", "idleMs": 1000, "timeout": 30000 },
+    {
+      "action": "extractNetworkResponse",
+      "url": "*/billing/*/invoices*",
+      "jsonPath": "invoices",
+      "assignTo": "invoices",
+      "timeout": 25000,
+      "description": "La console appelle son API JSON ; la lire est plus robuste que le tableau rendu"
+    },
+    { "action": "waitForElement", "selector": "tbody tr", "timeout": 25000 },
+    {
+      "action": "extractAll",
+      "selector": "tbody tr",
+      "limit": 60,
+      "fields": {
+        "number": { "selector": "td:nth-child(1)" },
+        "date": { "selector": "td:nth-child(2)" },
+        "total": { "selector": "td:nth-child(3)" },
+        "pdf": { "selector": "a[href*='invoice'], a[download]", "attribute": "href" }
+      },
+      "forEach": [
+        {
+          "action": "downloadPdf",
+          "url": "{{item.pdf}}",
+          "timeout": 60000,
+          "document": {
+            "id": "{{item.number}}",
+            "date": "{{item.date}}",
+            "total": "{{item.total}}",
+            "number": "{{item.number}}",
+            "issuer": "Scaleway",
+            "currency": "EUR"
+          }
+        }
+      ]
+    }
+  ]
+}
