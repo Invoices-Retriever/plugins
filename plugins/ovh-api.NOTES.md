@@ -16,22 +16,19 @@ prefer the portal; someone who schedules it wants the keys.
 
 ## Creating the keys
 
-<https://api.ovh.com/createToken/>, with the rights this plugin actually uses
-and nothing more:
+Use the link the plugin carries, which pre-fills the form with the single right
+it needs:
 
-```
-GET /me
-GET /me/bill
-GET /me/bill/*
-```
+<https://www.ovh.com/auth/api/createToken?GET=/me/bill*>
 
-`GET /me` is only there so `checkAuth` has something to call. Grant no write
-rights: a collector reads, and the validator refuses anything but GET and POST
-in any case.
+Set the **validity to Unlimited**. Any other value makes collection stop on the
+day the key expires, with no warning beforehand — the app can only report that
+the credentials were refused, the morning after.
 
-Set no expiry if you want collection to keep working; OVHcloud otherwise
-revokes the consumer key on the date you choose, and the app will report
-"refused these credentials" the morning after.
+`GET /me/bill*` covers both calls the plugin makes: the list, and each bill.
+Grant nothing else. `checkAuth` deliberately probes `/me/bill` restricted to
+today rather than `/me`, so that one right is genuinely all that is needed — an
+empty list is still a 200, and therefore still proof the keys work.
 
 ## How it authenticates
 

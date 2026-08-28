@@ -2,7 +2,7 @@
   "$schema": "../schema/plugin-v1.schema.json",
   "id": "ovh-api",
   "name": "OVHcloud (API)",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Factures OVHcloud collectées par l'API, avec vos propres clés. Aucun navigateur, aucun mot de passe et aucune double authentification : la collecte peut tourner sans vous.",
   "homepage": "https://www.ovhcloud.com",
   "maintainers": ["@cldt-fr"],
@@ -22,7 +22,7 @@
       "type": "string",
       "label": "Application key",
       "required": true,
-      "help": "Créez les trois clés sur https://api.ovh.com/createToken/ avec les droits GET /me/bill et GET /me/bill/*."
+      "help": "Créez les trois clés avec le lien ci-dessous : il préremplit le seul droit nécessaire (GET /me/bill*). Choisissez « Illimitée » comme durée de validité."
     },
     "applicationSecret": {
       "type": "password",
@@ -37,7 +37,7 @@
   },
   "api": {
     "baseUrl": "https://eu.api.ovh.com/1.0",
-    "credentialsUrl": "https://api.ovh.com/createToken/",
+    "credentialsUrl": "https://www.ovh.com/auth/api/createToken?GET=/me/bill*",
     "headers": {
       "Accept": "application/json"
     },
@@ -67,14 +67,15 @@
           "{{api.time}}"
         ]
       }
-    }
+    },
+    "credentialsHint": "Choisissez « Illimitée » comme durée de validité. Toute autre valeur fait cesser la collecte le jour de l'expiration, sans prévenir."
   },
   "checkAuth": [
     {
       "action": "apiRequest",
-      "url": "/me",
-      "assignTo": "account",
-      "description": "Le plus petit appel authentifié qui existe : s'il répond, les trois clés sont bonnes et ont les droits."
+      "url": "/me/bill?date.from={{now.date}}T00:00:00Z",
+      "assignTo": "probe",
+      "description": "La plus petite requête authentifiée que les droits accordés permettent : aujourd'hui seulement, donc souvent une liste vide — et une liste vide est une réponse 200, donc une preuve que les clés sont bonnes. Volontairement sous /me/bill et non /me, pour que le lien de création n'ait à accorder qu'un seul droit."
     }
   ],
   "getDocuments": [
