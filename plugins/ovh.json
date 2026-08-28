@@ -2,7 +2,7 @@
   "$schema": "../schema/plugin-v1.schema.json",
   "id": "ovh",
   "name": "OVHcloud",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Factures OVHcloud. La connexion est vérifiée sur le portail réel ; les sélecteurs du tableau de facturation ne le sont pas encore — voir ovh.NOTES.md. Signalez-nous ce que vous trouvez.",
   "homepage": "https://www.ovhcloud.com",
   "maintainers": ["@cldt-fr"],
@@ -104,15 +104,15 @@
     {
       "action": "if",
       "condition": {
-        "elementExists": "input[autocomplete='one-time-code'], input[name='totpCode'], #totpCode"
+        "elementExists": "input[autocomplete='one-time-code'], #totpCode, input[name='totpCode'], #emailCode, #smsCode, #backupCode, input[placeholder='Code'], form input[type='text']:not(#account):not(#lost-account)"
       },
       "then": [
         {
           "action": "type",
-          "selector": "input[autocomplete='one-time-code'], input[name='totpCode'], #totpCode",
+          "selector": "input[autocomplete='one-time-code'], #totpCode, input[name='totpCode'], #emailCode, #smsCode, #backupCode, input[placeholder='Code'], form input[type='text']:not(#account):not(#lost-account)",
           "value": "{{totp.mfa}}",
           "pressEnter": true,
-          "description": "NON VÉRIFIÉ : l'écran 2FA n'est pas atteignable sans compte. Si le remplissage échoue, l'application laisse simplement l'utilisateur saisir le code lui-même, ce qui reste correct."
+          "description": "Écran « Validation en deux étapes ». L'union couvre les variantes d'OVH ; si aucune ne correspond, l'utilisateur saisit le code lui-même et l'app capture la structure de la page pour corriger le sélecteur."
         },
         {
           "action": "waitForNavigation",
