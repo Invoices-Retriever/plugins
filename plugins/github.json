@@ -2,7 +2,7 @@
   "$schema": "../schema/plugin-v1.schema.json",
   "id": "github",
   "name": "GitHub",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Reçus GitHub — compte personnel ou organisation. Le reçu est servi directement en PDF par GitHub, il n'y a rien à imprimer.",
   "homepage": "https://github.com",
   "maintainers": ["@cldt-fr"],
@@ -12,6 +12,8 @@
   "allowedDomains": [
     "github.com",
     "*.github.com",
+    "githubassets.com",
+    "*.githubassets.com",
     "githubusercontent.com",
     "*.githubusercontent.com"
   ],
