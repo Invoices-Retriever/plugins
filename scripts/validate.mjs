@@ -205,6 +205,10 @@ function checkPlugin(file, raw, { published }) {
   }
 
   // --- editorial -----------------------------------------------------------
+  const status = plugin.status ?? "active";
+  if (published && status === "active" && !plugin.maintainers?.length) {
+    warn(name, "claims to be working but has no maintainer to tell when it stops");
+  }
   if (published) {
     if (!plugin.country?.length) warn(name, "no country declared; hard to find in the catalogue");
     if (!plugin.description) warn(name, "no description");

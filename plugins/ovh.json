@@ -2,13 +2,15 @@
   "$schema": "../schema/plugin-v1.schema.json",
   "id": "ovh",
   "name": "OVHcloud",
-  "version": "0.2.0",
-  "description": "Factures OVHcloud. La partie connexion est vérifiée sur le portail réel ; les sélecteurs du tableau de facturation restent à confirmer sur un compte, voir drafts/ovh.NOTES.md.",
+  "version": "0.3.0",
+  "description": "Factures OVHcloud. La connexion est vérifiée sur le portail réel ; les sélecteurs du tableau de facturation ne le sont pas encore — voir ovh.NOTES.md. Signalez-nous ce que vous trouvez.",
   "homepage": "https://www.ovhcloud.com",
+  "maintainers": ["@cldt-fr"],
   "country": ["FR", "EU"],
   "tags": ["hosting", "cloud", "domains"],
   "engine": ">=1.0.0",
   "allowedDomains": ["ovhcloud.com", "*.ovhcloud.com", "ovh.com", "*.ovh.com"],
+  "status": "unverified",
   "configSchema": {
     "region": {
       "type": "select",
@@ -17,9 +19,18 @@
       "required": true,
       "default": "eu",
       "options": [
-        { "value": "eu", "label": "Europe" },
-        { "value": "ca", "label": "Canada" },
-        { "value": "us", "label": "États-Unis" }
+        {
+          "value": "eu",
+          "label": "Europe"
+        },
+        {
+          "value": "ca",
+          "label": "Canada"
+        },
+        {
+          "value": "us",
+          "label": "États-Unis"
+        }
       ]
     },
     "customerID": {
@@ -41,28 +52,34 @@
     }
   },
   "autofill": true,
-
   "checkAuth": [
     {
       "action": "navigate",
       "url": "https://manager.{{config.region}}.ovhcloud.com/#/billing/history",
       "description": "Non connecté, OVH redirige vers auth.<région>.ovhcloud.com ; c'est ce que la vérification d'URL détecte."
     },
-    { "action": "waitForNetworkIdle", "idleMs": 800, "timeout": 25000 },
+    {
+      "action": "waitForNetworkIdle",
+      "idleMs": 800,
+      "timeout": 25000
+    },
     {
       "action": "checkURL",
       "url": "https://manager.*.ovhcloud.com/*",
       "description": "Vérifié : rester sur le manager signifie connecté, être renvoyé sur auth. signifie déconnecté."
     }
   ],
-
   "startAuth": [
     {
       "action": "navigate",
       "url": "https://www.ovh.com/auth/",
       "description": "Redirige vers auth.<région>.ovhcloud.com/signin/"
     },
-    { "action": "waitForElement", "selector": "#account", "timeout": 20000 },
+    {
+      "action": "waitForElement",
+      "selector": "#account",
+      "timeout": 20000
+    },
     {
       "action": "type",
       "selector": "#account",
@@ -80,7 +97,10 @@
       "selector": "#login-submit",
       "description": "Vérifié : bouton « Se connecter »"
     },
-    { "action": "waitForNavigation", "timeout": 30000 },
+    {
+      "action": "waitForNavigation",
+      "timeout": 30000
+    },
     {
       "action": "if",
       "condition": {
@@ -94,17 +114,23 @@
           "pressEnter": true,
           "description": "NON VÉRIFIÉ : l'écran 2FA n'est pas atteignable sans compte. Si le remplissage échoue, l'application laisse simplement l'utilisateur saisir le code lui-même, ce qui reste correct."
         },
-        { "action": "waitForNavigation", "timeout": 30000 }
+        {
+          "action": "waitForNavigation",
+          "timeout": 30000
+        }
       ]
     }
   ],
-
   "getDocuments": [
     {
       "action": "navigate",
       "url": "https://manager.{{config.region}}.ovhcloud.com/#/billing/history"
     },
-    { "action": "waitForNetworkIdle", "idleMs": 1200, "timeout": 30000 },
+    {
+      "action": "waitForNetworkIdle",
+      "idleMs": 1200,
+      "timeout": 30000
+    },
     {
       "action": "waitForElement",
       "selector": "table tbody tr",
@@ -116,10 +142,19 @@
       "selector": "table tbody tr",
       "limit": 60,
       "fields": {
-        "billId": { "selector": "td:nth-child(1)" },
-        "date": { "selector": "td:nth-child(2)" },
-        "total": { "selector": "td:nth-child(4)" },
-        "pdf": { "selector": "a[href*='pdf'], a[download]", "attribute": "href" }
+        "billId": {
+          "selector": "td:nth-child(1)"
+        },
+        "date": {
+          "selector": "td:nth-child(2)"
+        },
+        "total": {
+          "selector": "td:nth-child(4)"
+        },
+        "pdf": {
+          "selector": "a[href*='pdf'], a[download]",
+          "attribute": "href"
+        }
       },
       "forEach": [
         {
