@@ -2,7 +2,7 @@
   "$schema": "../schema/plugin-v1.schema.json",
   "id": "ovh-api",
   "name": "OVHcloud (API)",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Factures OVHcloud collectées par l'API, avec vos propres clés. Aucun navigateur, aucun mot de passe et aucune double authentification : la collecte peut tourner sans vous.",
   "homepage": "https://www.ovhcloud.com",
   "maintainers": ["@cldt-fr"],
@@ -11,11 +11,12 @@
   "engine": ">=1.2.0",
   "status": "unverified",
   "allowedDomains": [
-    "eu.api.ovh.com",
-    "ca.api.ovh.com",
-    "api.us.ovhcloud.com",
-    "*.ovh.net",
-    "*.ovhcloud.com"
+    "ovh.com",
+    "*.ovh.com",
+    "ovhcloud.com",
+    "*.ovhcloud.com",
+    "ovh.net",
+    "*.ovh.net"
   ],
   "configSchema": {
     "applicationKey": {

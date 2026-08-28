@@ -2,7 +2,7 @@
   "$schema": "../schema/plugin-v1.schema.json",
   "id": "ovh",
   "name": "OVHcloud",
-  "version": "0.9.1",
+  "version": "0.9.2",
   "description": "Factures OVHcloud, lues via l'API v6 du portail plutôt que par extraction du tableau. Connexion et double authentification vérifiées sur le portail réel.",
   "homepage": "https://www.ovhcloud.com",
   "maintainers": ["@cldt-fr"],
@@ -10,10 +10,12 @@
   "tags": ["hosting", "cloud", "domains"],
   "engine": ">=1.1.0",
   "allowedDomains": [
-    "ovhcloud.com",
-    "*.ovhcloud.com",
     "ovh.com",
     "*.ovh.com",
+    "ovhcloud.com",
+    "*.ovhcloud.com",
+    "ovh.net",
+    "*.ovh.net",
     "ovhtelecom.fr",
     "*.ovhtelecom.fr"
   ],
