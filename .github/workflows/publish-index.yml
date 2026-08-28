@@ -17,9 +17,18 @@ concurrency:
 
 jobs:
   publish:
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
+
+      - name: Select the newest Swift toolchain on the runner
+        run: |
+          # Runner images ship several Xcodes and default to an older one;
+          # this package needs Swift 6. Picking the highest present avoids
+          # pinning a version that the image will drop in six months.
+          latest="$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1)"
+          if [ -n "$latest" ]; then sudo xcode-select -s "$latest"; fi
+          swift --version
 
       - name: Check out the application
         uses: actions/checkout@v4
@@ -46,8 +55,13 @@ jobs:
           INDEX_SIGNING_KEY: ${{ secrets.INDEX_SIGNING_KEY }}
         run: |
           if [ -z "$INDEX_SIGNING_KEY" ]; then
-            echo "::error::INDEX_SIGNING_KEY is not set. The app refuses an unsigned index, so publishing one would be worse than publishing nothing."
-            exit 1
+            # Deliberately a skip rather than a failure: an unsigned index is
+            # refused by every installed copy of the application, so publishing
+            # one would be worse than publishing nothing. Generate a key pair
+            # with `irctl keygen` and set the secret to start publishing.
+            echo "::warning::INDEX_SIGNING_KEY is not set — nothing published."
+            echo "skipped=true" >> "$GITHUB_ENV"
+            exit 0
           fi
           IRCTL="$(cd .app && swift build -c release --show-bin-path)/irctl"
           printf '%s' "$INDEX_SIGNING_KEY" > /tmp/signing.key
@@ -57,6 +71,7 @@ jobs:
           cp -R plugins dist/plugins
 
       - name: Verify what we are about to publish
+        if: env.skipped != 'true'
         run: |
           test -s dist/index.json
           test -s dist/index.json.sig
@@ -75,6 +90,7 @@ jobs:
           PY
 
       - name: Publish
+        if: env.skipped != 'true'
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}

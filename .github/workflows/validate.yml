@@ -23,7 +23,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
 
       - name: JSON Schema
         run: |
@@ -35,7 +35,7 @@ jobs:
         run: node scripts/validate.mjs
 
       - name: Formatting
-        run: npx --yes prettier@3 --check "plugins/*.json" "drafts/*.json"
+        run: npx --yes prettier@3 --check "{plugins,drafts,docs,schema}/**/*.json"
 
       - name: Secret scan
         uses: gitleaks/gitleaks-action@v2
@@ -45,9 +45,18 @@ jobs:
   # The same validator the application runs. Slower, and the one that decides.
   authoritative:
     name: irctl lint
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
+
+      - name: Select the newest Swift toolchain on the runner
+        run: |
+          # Runner images ship several Xcodes and default to an older one;
+          # this package needs Swift 6. Picking the highest present avoids
+          # pinning a version that the image will drop in six months.
+          latest="$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1)"
+          if [ -n "$latest" ]; then sudo xcode-select -s "$latest"; fi
+          swift --version
 
       - name: Check out the application
         uses: actions/checkout@v4
@@ -88,7 +97,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
       - name: Run captures
         run: |
           npm install --no-save linkedom@0.18
