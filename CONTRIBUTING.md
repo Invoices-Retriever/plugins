@@ -144,6 +144,69 @@ reformat it in the plugin.
 If a row fails, the engine logs it and carries on with the next one. One broken
 invoice does not cost the user the other eleven.
 
+### If the portal has an API, use it
+
+A great many portals are a thin interface over their own JSON API — the table
+you are about to scrape was drawn from it in the browser. Reading that API
+instead is less work and far more durable: a redesign changes the markup every
+year, the API rarely.
+
+`apiRequest` makes the call **from the page you are already on**, with the
+session cookies you already have. There is no second set of credentials to ask
+the user for, no token to store, and the call is subject to the same
+`allowedDomains` sandbox as everything else — so the API host must be declared
+there too.
+
+```jsonc
+"getDocuments": [
+  // Be on the portal first: the call inherits this page's session.
+  { "action": "navigate", "url": "https://manager.example.com/billing" },
+  {
+    "action": "apiRequest",
+    "url": "https://manager.example.com/apiv6/me/bill?date.from={{cutoff.date}}T00:00:00Z",
+    "assignTo": "billIds"
+  },
+  {
+    // `items` walks a JSON list the way `selector` walks the page.
+    "action": "extractAll",
+    "items": "{{billIds}}",
+    "forEach": [
+      // A list of plain identifiers: each one is {{item}}.
+      { "action": "apiRequest", "url": ".../me/bill/{{item}}", "assignTo": "bill" },
+      {
+        "action": "downloadPdf",
+        "url": "{{bill.pdfUrl}}",
+        "document": {
+          "id":    "{{bill.billId}}",
+          "date":  "{{bill.date}}",
+          "total": "{{bill.priceWithTax.text}}"
+        }
+      }
+    ]
+  }
+]
+```
+
+Worth knowing:
+
+- **`GET` and `POST` only.** A collector reads; it must never be able to change
+  anything on a portal, and the validator enforces that.
+- **`{{cutoff.date}}`** is the date of the last successful run. An API that
+  filters by date turns incremental collection into a smaller request rather
+  than a longer loop.
+- **`jsonPath`** pulls a nested list out of an envelope: `"jsonPath": "data.items"`.
+- A list of **objects** exposes `{{item.field}}`; a list of **plain values**
+  exposes `{{item}}`. Both are common — many APIs answer a list of identifiers
+  and expect a second call for each.
+- Use `{{variable.field.subfield}}` to reach into anything `assignTo` stored.
+- This is **not** `runJs`. A plugin reading an API stays declarative and is not
+  flagged as running its own code.
+
+Finding the endpoint is usually a minute of work: open the portal's billing page
+with the browser's network inspector, filter on XHR, and read the request the
+page made. If the supplier documents its API publicly, link to it from the
+step's `description` — the next person to fix this plugin will need it.
+
 ### When there is no PDF
 
 Some portals only ever show an invoice as a web page. Navigate to it and use

@@ -128,7 +128,7 @@ function checkPlugin(file, raw, { published }) {
 
   // Check 4: every host the plugin navigates to must be declared.
   for (const [step, path] of steps) {
-    if (!["navigate", "downloadPdf"].includes(step.action)) continue;
+    if (!["navigate", "downloadPdf", "apiRequest"].includes(step.action)) continue;
     const url = step.url ?? "";
     if (url.includes("{{")) continue;
     let host;
@@ -141,13 +141,27 @@ function checkPlugin(file, raw, { published }) {
     if (!domainAllows(domains, host)) {
       fail(name, `${path}: navigates to ${host}, which allowedDomains does not cover`);
     }
-    if (step.action === "navigate" && !url.startsWith("https://")) {
-      fail(name, `${path}: navigate must use https`);
+    if (["navigate", "apiRequest"].includes(step.action) && !url.startsWith("https://")) {
+      fail(name, `${path}: ${step.action} must use https`);
     }
   }
 
   // --- steps ---------------------------------------------------------------
   for (const [step, path] of steps) {
+    if (step.action === "extractAll") {
+      if (!step.selector && !step.items) {
+        fail(name, `${path}: extractAll needs either 'selector' or 'items'`,
+             "'selector' walks the page; 'items' walks a JSON list from apiRequest.");
+      }
+      if (step.selector && step.items) {
+        fail(name, `${path}: extractAll takes 'selector' or 'items', not both`);
+      }
+    }
+    if (step.action === "apiRequest" && step.method
+        && !["GET", "POST"].includes(step.method.toUpperCase())) {
+      fail(name, `${path}: only GET and POST are allowed`,
+           "A collector does not modify a portal.");
+    }
     if (!STEP_ACTIONS.has(step.action)) {
       fail(name, `${path}: unknown action '${step.action}'`,
            `Known actions: ${[...STEP_ACTIONS].join(", ")}`);
