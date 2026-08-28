@@ -58,6 +58,40 @@ function allSteps(plugin) {
   ];
 }
 
+// The engine version each piece of vocabulary first appeared in. A plugin
+// using one of these while declaring an older `engine` range still installs on
+// applications that predate it — which reject it as *invalid*, sending users
+// hunting for a fault in a plugin that is perfectly correct.
+const FEATURE_ENGINE = new Map([
+  ["apiRequest", [1, 1, 0]],
+  ["extractAll.items", [1, 1, 0]],
+]);
+
+const compareVersions = (a, b) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
+
+function requiredEngineFloor(steps) {
+  let floor = [1, 0, 0];
+  for (const [step] of steps) {
+    const features = [step.action];
+    if (step.action === "extractAll" && step.items !== undefined) {
+      features.push("extractAll.items");
+    }
+    for (const feature of features) {
+      const introduced = FEATURE_ENGINE.get(feature);
+      if (introduced && compareVersions(introduced, floor) > 0) floor = introduced;
+    }
+  }
+  return floor;
+}
+
+// Only ">=x.y.z" is worth reasoning about here; anything else the schema
+// already constrains, and a stricter range cannot admit an older engine.
+function admitsEngine(range, version) {
+  const match = /^>=\s*(\d+)\.(\d+)\.(\d+)$/.exec(range ?? "");
+  if (!match) return false;
+  return compareVersions(match.slice(1).map(Number), version) <= 0;
+}
+
 function domainAllows(patterns, host) {
   return patterns.some((pattern) =>
     pattern.startsWith("*.")
@@ -125,6 +159,13 @@ function checkPlugin(file, raw, { published }) {
   }
 
   const steps = allSteps(plugin);
+
+  const floor = requiredEngineFloor(steps);
+  if (compareVersions(floor, [1, 0, 0]) > 0 && admitsEngine(plugin.engine, [1, 0, 0])) {
+    fail(name, `uses vocabulary introduced in engine ${floor.join(".")} `
+             + `but '${plugin.engine}' also admits older engines`,
+         `Set "engine": ">=${floor.join(".")}".`);
+  }
 
   // Check 4: every host the plugin navigates to must be declared.
   for (const [step, path] of steps) {

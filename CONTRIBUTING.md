@@ -189,6 +189,11 @@ there too.
 
 Worth knowing:
 
+- **Say `"engine": ">=1.1.0"`.** That is the version `apiRequest` and `items`
+  appeared in. An application older than that then reports "needs a newer
+  version of the app" and moves on; leave `engine` at `>=1.0.0` and it reports
+  your plugin as *invalid* instead, sending users to look for a fault that is
+  not there. CI refuses the mismatch, so you cannot ship it by accident.
 - **`GET` and `POST` only.** A collector reads; it must never be able to change
   anything on a portal, and the validator enforces that.
 - **`{{cutoff.date}}`** is the date of the last successful run. An API that
