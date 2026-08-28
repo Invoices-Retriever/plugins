@@ -130,3 +130,10 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./dist
           publish_branch: gh-pages
+
+      # Served at https://invoices-retriever.github.io/plugins/index.json.
+      # Pages rather than raw.githubusercontent: Pages purges its CDN when a
+      # deploy lands, and raw does not — it served a five-minute-old index
+      # twice during development, which looked like a bug in the application
+      # both times. An index that has to be able to withdraw a compromised
+      # plugin cannot be eventually consistent.
