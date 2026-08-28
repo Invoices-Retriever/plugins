@@ -2,9 +2,10 @@
   "$schema": "../schema/plugin-v1.schema.json",
   "id": "github",
   "name": "GitHub",
-  "version": "1.0.0",
-  "description": "Reçus GitHub — compte personnel ou organisation. GitHub ne sert ses reçus qu'en HTML, ils sont donc imprimés en PDF.",
+  "version": "1.1.0",
+  "description": "Reçus GitHub — compte personnel ou organisation. Le reçu est servi directement en PDF par GitHub, il n'y a rien à imprimer.",
   "homepage": "https://github.com",
+  "maintainers": ["@cldt-fr"],
   "country": ["US", "EU"],
   "tags": ["saas", "developer"],
   "engine": ">=1.0.0",
@@ -15,6 +16,21 @@
     "*.githubusercontent.com"
   ],
   "configSchema": {
+    "username": {
+      "type": "string",
+      "label": "Identifiant ou e-mail GitHub",
+      "required": true
+    },
+    "password": {
+      "type": "password",
+      "label": "Mot de passe",
+      "required": true
+    },
+    "mfa": {
+      "type": "totp",
+      "label": "Secret de double authentification",
+      "help": "Facultatif. Collez le secret affiché sous le QR code lors de l'activation de la 2FA, ou le lien otpauth:// entier. Si votre 2FA est une passkey ou un SMS, laissez vide : la connexion se terminera à la main dans la fenêtre."
+    },
     "account": {
       "type": "string",
       "label": "Organisation",
@@ -22,7 +38,7 @@
       "placeholder": "mon-organisation"
     }
   },
-  "autofill": false,
+  "autofill": true,
   "checkAuth": [
     {
       "action": "if",
@@ -48,20 +64,63 @@
       "timeout": 25000
     },
     {
-      "action": "checkURL",
-      "url": "*github.com/*settings/billing*"
+      "action": "checkElementExists",
+      "selector": "header button[data-login]",
+      "description": "Le bouton du menu de compte n'existe que sur une page servie à une session ouverte ; une session morte renvoie sur /login, où il est absent."
     }
   ],
   "startAuth": [
     {
       "action": "navigate",
-      "url": "https://github.com/login",
-      "description": "GitHub demande souvent une vérification par appareil ; l'utilisateur termine la connexion lui-même."
+      "url": "https://github.com/login"
     },
     {
       "action": "waitForElement",
       "selector": "input[name='login']",
       "timeout": 20000
+    },
+    {
+      "action": "type",
+      "selector": "input[name='login']",
+      "value": "{{config.username}}"
+    },
+    {
+      "action": "type",
+      "selector": "input[name='password']",
+      "value": "{{secret.password}}"
+    },
+    {
+      "action": "click",
+      "selector": "input[name='commit'], button[type='submit']"
+    },
+    {
+      "action": "waitForNavigation",
+      "timeout": 30000
+    },
+    {
+      "action": "if",
+      "condition": {
+        "elementExists": "input[name='app_otp']"
+      },
+      "then": [
+        {
+          "action": "type",
+          "selector": "input[name='app_otp']",
+          "value": "{{totp.mfa}}",
+          "pressEnter": true,
+          "description": "Étape TOTP, seulement quand GitHub la présente."
+        },
+        {
+          "action": "waitForNavigation",
+          "timeout": 30000
+        }
+      ]
+    },
+    {
+      "action": "waitForElement",
+      "selector": "header button[data-login]",
+      "timeout": 120000,
+      "description": "GitHub fait souvent suivre le mot de passe d'une vérification par appareil, d'une passkey ou d'un code envoyé par e-mail. Le plugin ne cherche pas à la franchir : il laisse la main à l'utilisateur, et attend simplement que la session soit ouverte."
     }
   ],
   "getDocuments": [
@@ -73,13 +132,13 @@
       "then": [
         {
           "action": "navigate",
-          "url": "https://github.com/organizations/{{config.account}}/settings/billing/payment_history"
+          "url": "https://github.com/organizations/{{config.account}}/billing/history"
         }
       ],
       "else": [
         {
           "action": "navigate",
-          "url": "https://github.com/settings/billing/payment_history"
+          "url": "https://github.com/account/billing/history"
         }
       ]
     },
@@ -89,52 +148,51 @@
       "timeout": 30000
     },
     {
-      "action": "waitForElement",
-      "selector": "a[href*='/receipt/']",
-      "timeout": 25000
-    },
-    {
       "action": "extractAll",
-      "selector": "li:has(a[href*='/receipt/']), tr:has(a[href*='/receipt/'])",
-      "limit": 40,
+      "selector": ".payment-history li.Box-row:has(.receipt a[href$='.pdf'])",
+      "description": "Une ligne par paiement. Le :has() écarte d'emblée les lignes sans reçu téléchargeable, ce qui évite d'avoir à filtrer sur le statut — dont la cellule contient un doublon masqué pour les lecteurs d'écran.",
+      "limit": 100,
       "fields": {
+        "id": {
+          "selector": ".id code",
+          "regex": "[A-Z0-9]{6,}"
+        },
         "date": {
-          "selector": "time",
-          "attribute": "datetime"
+          "selector": ".date",
+          "regex": "\\d{4}-\\d{2}-\\d{2}"
         },
         "total": {
-          "selector": ".text-right, td:last-child"
+          "selector": ".amount",
+          "regex": "\\S+"
         },
-        "receipt": {
-          "selector": "a[href*='/receipt/']",
+        "method": {
+          "selector": ".method",
+          "optional": true
+        },
+        "pdf": {
+          "selector": ".receipt a[href$='.pdf']",
           "attribute": "href"
         }
       },
       "forEach": [
         {
-          "action": "navigate",
-          "url": "{{item.receipt}}"
-        },
-        {
-          "action": "waitForNetworkIdle",
-          "idleMs": 500,
-          "timeout": 20000
-        },
-        {
-          "action": "printPdf",
-          "description": "GitHub ne sert ses reçus qu'en HTML",
+          "action": "downloadPdf",
+          "url": "{{item.pdf}}",
+          "timeout": 60000,
           "document": {
-            "id": "{{item.receipt}}",
+            "id": "{{item.id}}",
             "date": "{{item.date}}",
             "total": "{{item.total}}",
-            "issuer": "GitHub",
+            "number": "{{item.id}}",
+            "issuer": "GitHub, Inc.",
             "type": "receipt",
-            "currency": "USD"
+            "metadata": {
+              "paymentMethod": "{{item.method}}"
+            }
           }
         }
       ]
     }
   ],
-  "maintainers": ["@cldt-fr"],
   "status": "unverified"
 }
