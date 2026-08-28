@@ -1,0 +1,112 @@
+{
+  "$schema": "../schema/plugin-v1.schema.json",
+  "id": "ovh-api",
+  "name": "OVHcloud (API)",
+  "version": "1.0.0",
+  "description": "Factures OVHcloud collectées par l'API, avec vos propres clés. Aucun navigateur, aucun mot de passe et aucune double authentification : la collecte peut tourner sans vous.",
+  "homepage": "https://www.ovhcloud.com",
+  "maintainers": ["@cldt-fr"],
+  "country": ["FR", "EU"],
+  "tags": ["hosting", "domains", "cloud"],
+  "engine": ">=1.2.0",
+  "status": "unverified",
+  "allowedDomains": [
+    "eu.api.ovh.com",
+    "ca.api.ovh.com",
+    "api.us.ovhcloud.com",
+    "*.ovh.net",
+    "*.ovhcloud.com"
+  ],
+  "configSchema": {
+    "applicationKey": {
+      "type": "string",
+      "label": "Application key",
+      "required": true,
+      "help": "Créez les trois clés sur https://api.ovh.com/createToken/ avec les droits GET /me/bill et GET /me/bill/*."
+    },
+    "applicationSecret": {
+      "type": "password",
+      "label": "Application secret",
+      "required": true
+    },
+    "consumerKey": {
+      "type": "password",
+      "label": "Consumer key",
+      "required": true
+    }
+  },
+  "api": {
+    "baseUrl": "https://eu.api.ovh.com/1.0",
+    "credentialsUrl": "https://api.ovh.com/createToken/",
+    "headers": {
+      "Accept": "application/json"
+    },
+    "auth": {
+      "type": "signature",
+      "headers": {
+        "X-Ovh-Application": "{{config.applicationKey}}",
+        "X-Ovh-Consumer": "{{secret.consumerKey}}",
+        "X-Ovh-Timestamp": "{{api.time}}"
+      },
+      "time": {
+        "url": "https://eu.api.ovh.com/1.0/auth/time",
+        "format": "text"
+      },
+      "signature": {
+        "header": "X-Ovh-Signature",
+        "algorithm": "sha1",
+        "encoding": "hex",
+        "prefix": "$1$",
+        "separator": "+",
+        "parts": [
+          "{{secret.applicationSecret}}",
+          "{{secret.consumerKey}}",
+          "{{request.method}}",
+          "{{request.url}}",
+          "{{request.body}}",
+          "{{api.time}}"
+        ]
+      }
+    }
+  },
+  "checkAuth": [
+    {
+      "action": "apiRequest",
+      "url": "/me",
+      "assignTo": "account",
+      "description": "Le plus petit appel authentifié qui existe : s'il répond, les trois clés sont bonnes et ont les droits."
+    }
+  ],
+  "getDocuments": [
+    {
+      "action": "apiRequest",
+      "url": "/me/bill?date.from={{cutoff.date}}T00:00:00Z",
+      "assignTo": "billIds",
+      "description": "Répond une liste d'identifiants, filtrée par date — ce qui correspond exactement à la collecte incrémentale."
+    },
+    {
+      "action": "extractAll",
+      "items": "{{billIds}}",
+      "limit": 200,
+      "forEach": [
+        {
+          "action": "apiRequest",
+          "url": "/me/bill/{{item}}",
+          "assignTo": "bill"
+        },
+        {
+          "action": "downloadPdf",
+          "url": "{{bill.pdfUrl}}",
+          "timeout": 60000,
+          "document": {
+            "id": "{{bill.billId}}",
+            "date": "{{bill.date}}",
+            "total": "{{bill.priceWithTax.text}}",
+            "number": "{{bill.billId}}",
+            "issuer": "OVHcloud"
+          }
+        }
+      ]
+    }
+  ]
+}

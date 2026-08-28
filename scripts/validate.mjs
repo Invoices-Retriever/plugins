@@ -69,8 +69,9 @@ const FEATURE_ENGINE = new Map([
 
 const compareVersions = (a, b) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
 
-function requiredEngineFloor(steps) {
-  let floor = [1, 0, 0];
+function requiredEngineFloor(steps, plugin) {
+  // Declaring an API transport is itself 1.2.0 vocabulary.
+  let floor = plugin?.api ? [1, 2, 0] : [1, 0, 0];
   for (const [step] of steps) {
     const features = [step.action];
     if (step.action === "extractAll" && step.items !== undefined) {
@@ -160,7 +161,7 @@ function checkPlugin(file, raw, { published }) {
 
   const steps = allSteps(plugin);
 
-  const floor = requiredEngineFloor(steps);
+  const floor = requiredEngineFloor(steps, plugin);
   if (compareVersions(floor, [1, 0, 0]) > 0 && admitsEngine(plugin.engine, [1, 0, 0])) {
     fail(name, `uses vocabulary introduced in engine ${floor.join(".")} `
              + `but '${plugin.engine}' also admits older engines`,
@@ -170,8 +171,12 @@ function checkPlugin(file, raw, { published }) {
   // Check 4: every host the plugin navigates to must be declared.
   for (const [step, path] of steps) {
     if (!["navigate", "downloadPdf", "apiRequest"].includes(step.action)) continue;
-    const url = step.url ?? "";
+    let url = step.url ?? "";
     if (url.includes("{{")) continue;
+    // A relative path inherits the API's host, which is checked in its own right.
+    if (plugin.api?.baseUrl && url.startsWith("/")) {
+      url = plugin.api.baseUrl.replace(/\/+$/, "") + url;
+    }
     let host;
     try {
       host = new URL(url).hostname.toLowerCase();
@@ -225,9 +230,78 @@ function checkPlugin(file, raw, { published }) {
     }
   }
 
+  // --- the API transport ---------------------------------------------------
+  if (plugin.api) {
+    const BROWSER_ONLY = new Set([
+      "navigate", "waitForURL", "waitForElement", "waitForNavigation", "waitForNetworkIdle",
+      "click", "type", "dropdownSelect", "runJs", "checkElementExists", "checkURL",
+      "extractNetworkResponse", "waitForPdfDownload", "printPdf", "downloadBase64Pdf",
+    ]);
+    for (const [step, path] of steps) {
+      if (BROWSER_ONLY.has(step.action)) {
+        fail(name, `${path}: '${step.action}' needs a browser, and this plugin declares an API`,
+             "API plugins use apiRequest, extractAll over items, extract and downloadPdf.");
+      }
+    }
+    if (plugin.startAuth !== undefined) {
+      fail(name, "an API plugin has no interactive sign-in",
+           "Credentials are entered once; remove startAuth.");
+    }
+
+    const auth = plugin.api.auth;
+    if (auth?.type === "signature") {
+      if (!auth.signature) fail(name, "a signed API needs a signature recipe");
+      else if (/^hmac/.test(auth.signature.algorithm ?? "") && !auth.signature.key) {
+        fail(name, `${auth.signature.algorithm} needs a key`);
+      }
+    }
+    if (auth?.type === "oauth2ClientCredentials" && !auth.token) {
+      fail(name, "OAuth2 needs a token endpoint");
+    }
+    if (auth?.type === "basic" && (!auth.username || !auth.password)) {
+      fail(name, "basic authentication needs a username and a password");
+    }
+
+    // Every host the transport itself reaches is subject to the sandbox too.
+    for (const [raw, where] of [
+      [plugin.api.baseUrl, "api.baseUrl"],
+      [auth?.time?.url, "api.auth.time.url"],
+      [auth?.token?.url, "api.auth.token.url"],
+    ]) {
+      if (!raw || raw.includes("{{")) continue;
+      let host;
+      try {
+        host = new URL(raw).hostname.toLowerCase();
+      } catch {
+        fail(name, `${where}: '${raw}' is not a URL`);
+        continue;
+      }
+      if (!domainAllows(domains, host)) {
+        fail(name, `${where}: ${host} is not in allowedDomains`,
+             "The sandbox applies to API calls too.");
+      }
+    }
+
+    // Only a password field reaches the Keychain; anything else sits in the
+    // database in clear.
+    for (const [key, field] of Object.entries(plugin.configSchema ?? {})) {
+      const looksSecret = ["secret", "password", "token", "consumerkey", "privatekey", "apikey"]
+        .some((needle) => key.toLowerCase().includes(needle));
+      if (looksSecret && field.type !== "password" && field.type !== "totp") {
+        fail(name, `configSchema.${key}: '${key}' looks like a credential but is not a password field`,
+             "Only password fields reach the Keychain.");
+      }
+    }
+  }
+
   // --- checkAuth must be able to answer no ---------------------------------
   const lastCheckAuth = (plugin.checkAuth ?? []).at(-1);
-  if (lastCheckAuth && !["checkURL", "checkElementExists", "runJs"].includes(lastCheckAuth.action)) {
+  // An API plugin verifies by making an authenticated call: a wrong key answers
+  // 401, which the engine reports as "credentials refused". There is no URL to
+  // compare and no element to find.
+  const apiVerifies = plugin.api !== undefined && lastCheckAuth?.action === "apiRequest";
+  if (lastCheckAuth && !apiVerifies &&
+      !["checkURL", "checkElementExists", "runJs"].includes(lastCheckAuth.action)) {
     fail(name, "checkAuth must end in a verification step",
          "Finish with checkURL or checkElementExists.");
   }

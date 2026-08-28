@@ -144,6 +144,102 @@ reformat it in the plugin.
 If a row fails, the engine logs it and carries on with the next one. One broken
 invoice does not cost the user the other eleven.
 
+### A plugin that is *only* an API
+
+The section below is about borrowing the session a user signed in for. This one
+is the other case: the supplier issues **API credentials**, and the plugin uses
+those instead of a password. Declare an `api` block and the plugin never opens a
+browser at all — no window, no password in the keychain, no two-factor code, and
+collection that can run unattended.
+
+```jsonc
+"engine": ">=1.2.0",
+"allowedDomains": ["eu.api.ovh.com", "*.ovhcloud.com"],
+"configSchema": {
+  "applicationKey":    { "type": "string",   "label": "Application key",    "required": true },
+  "applicationSecret": { "type": "password", "label": "Application secret", "required": true },
+  "consumerKey":       { "type": "password", "label": "Consumer key",       "required": true }
+},
+"api": {
+  "baseUrl": "https://eu.api.ovh.com/1.0",
+  "credentialsUrl": "https://api.ovh.com/createToken/",
+  "auth": { "type": "signature", "…": "see below" }
+},
+"checkAuth": [
+  // The call *is* the verification: wrong keys answer 401.
+  { "action": "apiRequest", "url": "/me", "assignTo": "account" }
+],
+"getDocuments": [
+  { "action": "apiRequest", "url": "/me/bill?date.from={{cutoff.date}}T00:00:00Z", "assignTo": "ids" },
+  { "action": "extractAll", "items": "{{ids}}", "forEach": [ /* … */ ] }
+]
+```
+
+Steps may use paths relative to `baseUrl`, which is why `/me` above is enough.
+There is no `startAuth`: nothing is interactive. Browser steps — `navigate`,
+`click`, `type`, `runJs`, `printPdf` and the rest — are refused by CI, because
+there is no page for them to act on.
+
+#### Declaring the authentication
+
+Authentication is declared as a **recipe from a closed vocabulary**, never as
+code. That is not bureaucracy: it is the property the whole project rests on —
+a reviewer who is not a programmer has to be able to read what a plugin does
+with someone's credentials.
+
+Four types cover what exists in practice:
+
+- `header` — an API key or a bearer token. Put it in `auth.headers`.
+- `basic` — HTTP Basic, from `username` and `password` templates.
+- `oauth2ClientCredentials` — exchanges a client id and secret for a token, then
+  sends it. The only OAuth2 flow that needs no browser, which is why it is the
+  only one here.
+- `signature` — hashes an ordered list of parts into a header. Most APIs that
+  predate OAuth2 work this way.
+
+A signature is written out rather than computed in code:
+
+```jsonc
+"auth": {
+  "type": "signature",
+  "headers": {
+    "X-Ovh-Application": "{{config.applicationKey}}",
+    "X-Ovh-Consumer":    "{{secret.consumerKey}}",
+    "X-Ovh-Timestamp":   "{{api.time}}"
+  },
+  // Some schemes are checked against the server's clock, not yours.
+  // Read once per run, then advanced locally.
+  "time": { "url": "https://eu.api.ovh.com/1.0/auth/time", "format": "text" },
+  "signature": {
+    "header": "X-Ovh-Signature",
+    "algorithm": "sha1",          // or sha256/sha512, or hmacSha1/hmacSha256/hmacSha512 with a "key"
+    "encoding": "hex",            // or base64
+    "prefix": "$1$",
+    "separator": "+",
+    "parts": [
+      "{{secret.applicationSecret}}", "{{secret.consumerKey}}",
+      "{{request.method}}", "{{request.url}}", "{{request.body}}", "{{api.time}}"
+    ]
+  }
+}
+```
+
+Inside `parts` you also get `{{request.method}}`, `{{request.url}}`,
+`{{request.body}}` and `{{api.time}}` — everything a request-signing scheme has
+ever needed, and nothing that reaches further.
+
+Two rules CI enforces, both about where credentials end up:
+
+- **Every host the transport touches must be in `allowedDomains`** — the base
+  URL, the time endpoint, the token endpoint. The sandbox is not relaxed
+  because there is no browser.
+- **A field whose name reads like a credential must be `type: "password"`.**
+  Only password fields reach the Keychain; a key in a plain string field would
+  sit in the database in clear.
+
+Test it with `irctl run plugins/your-plugin.json --step`, the same as any other
+plugin. There is no window, so what you watch is the step log.
+
 ### If the portal has an API, use it
 
 A great many portals are a thin interface over their own JSON API — the table
